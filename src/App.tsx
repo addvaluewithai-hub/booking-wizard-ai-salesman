@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import DesignSystemPlayground from './playground/DesignSystemPlayground';
 
 type Niche = 'hpl' | 'yachts' | 'law-firms';
 
@@ -295,11 +296,12 @@ export default function App() {
   }, []);
 
   const niche = pathToNiche(pathname);
+  const isPlayground = pathname === '/playground';
 
   return (
     <div className="app-shell">
       <Header />
-      {niche ? <NichePage niche={niche} /> : <Home />}
+      {isPlayground ? <DesignSystemPlayground /> : niche ? <NichePage niche={niche} /> : <Home />}
       <footer>
         <Logo />
         <p>Adaptive website experiences driven by live buyer behavior.</p>
