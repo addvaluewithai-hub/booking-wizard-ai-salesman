@@ -5,11 +5,21 @@ function secondsSince(timestamp: number | undefined, now: number): number | null
   return Math.max(0, Math.round((now - timestamp) / 1000));
 }
 
+function dwellBucket(totalDwellMs: number) {
+  if (totalDwellMs >= 30_000) return 'deep';
+  if (totalDwellMs >= 10_000) return 'engaged';
+  if (totalDwellMs > 0) return 'brief';
+  return undefined;
+}
+
 export function summarizeMemoryForModel(memory: SessionMemory, now = Date.now()) {
   const topEntities = Object.entries(memory.viewedEntities)
     .sort((a, b) => b[1].views - a[1].views || b[1].lastSeenAt - a[1].lastSeenAt)
     .slice(0, 8)
-    .map(([id, value]) => ({ id, views: value.views }));
+    .map(([id, value]) => {
+      const dwell = dwellBucket(value.totalDwellMs);
+      return { id, views: value.views, ...(dwell ? { dwell } : {}) };
+    });
 
   const sections = Object.entries(memory.viewedSections)
     .sort((a, b) => b[1] - a[1])

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { recordAnalyticsEvent } from '../../analytics/client';
+import { assignExperimentVariant } from '../../analytics/experiment';
 import { NICHE_CONFIGS, nicheFromPath, type NicheId } from '../../niches/config';
 import { applyDecisionCooldown, DecisionScheduler } from '../decision/scheduler';
 import type { SalesmanDecision } from '../decision/types';
@@ -12,11 +13,13 @@ import { createSalesObserver, type SalesObserver } from '../observer/observer';
 export type SalesmanEngineOptions = {
   niche?: NicheId;
   verifiedFacts?: Record<string, unknown>;
+  controlGroupPercent?: number;
 };
 
 export type ActiveIntervention = {
   id: string;
   decision: SalesmanDecision;
+  triggerEntityId?: string;
 };
 
 export function useSalesmanEngine(options: SalesmanEngineOptions = {}) {
@@ -27,9 +30,16 @@ export function useSalesmanEngine(options: SalesmanEngineOptions = {}) {
   const memoryRef = useRef(memory);
   const observerRef = useRef<SalesObserver | null>(null);
   const schedulerRef = useRef<DecisionScheduler | null>(null);
+  const experimentVariant = assignExperimentVariant(memory.sessionId, options.controlGroupPercent ?? 0);
+  const experimentVariantRef = useRef(experimentVariant);
+  experimentVariantRef.current = experimentVariant;
   const contextRef = useRef({ niche, verifiedFacts: options.verifiedFacts ?? {}, allowedActions: config.allowedActions });
 
   contextRef.current = { niche, verifiedFacts: options.verifiedFacts ?? {}, allowedActions: config.allowedActions };
+
+  const shouldAskScheduler = useCallback((eventType: string) => {
+    return experimentVariantRef.current === 'treatment' || eventType === 'explicit_help';
+  }, []);
 
   const commitEvent = useCallback((input: VisitorEventInput) => {
     const event = createVisitorEvent(input);
@@ -37,7 +47,7 @@ export function useSalesmanEngine(options: SalesmanEngineOptions = {}) {
     memoryRef.current = next;
     setMemory(next);
     saveSessionMemory(next);
-    recordAnalyticsEvent(event, next, niche);
+    recordAnalyticsEvent(event, next, niche, experimentVariantRef.current);
     return { event, memory: next };
   }, [niche]);
 
@@ -58,8 +68,8 @@ export function useSalesmanEngine(options: SalesmanEngineOptions = {}) {
         memoryRef.current = nextMemory;
         setMemory(nextMemory);
         saveSessionMemory(nextMemory);
-        recordAnalyticsEvent(impression, nextMemory, niche);
-        setIntervention({ id, decision });
+        recordAnalyticsEvent(impression, nextMemory, niche, experimentVariantRef.current);
+        setIntervention({ id, decision, triggerEntityId: trigger.entityId });
       },
     });
     schedulerRef.current = scheduler;
@@ -70,8 +80,8 @@ export function useSalesmanEngine(options: SalesmanEngineOptions = {}) {
         memoryRef.current = next;
         setMemory(next);
         saveSessionMemory(next);
-        recordAnalyticsEvent(event, next, niche);
-        scheduler.consider(next, event, contextRef.current);
+        recordAnalyticsEvent(event, next, niche, experimentVariantRef.current);
+        if (shouldAskScheduler(event.type)) scheduler.consider(next, event, contextRef.current);
       },
     });
     observerRef.current = observer;
@@ -83,7 +93,7 @@ export function useSalesmanEngine(options: SalesmanEngineOptions = {}) {
       observerRef.current = null;
       schedulerRef.current = null;
     };
-  }, [niche]);
+  }, [niche, shouldAskScheduler]);
 
   useEffect(() => {
     if (!intervention) return;
@@ -98,9 +108,9 @@ export function useSalesmanEngine(options: SalesmanEngineOptions = {}) {
 
   const emit = useCallback((input: VisitorEventInput) => {
     const result = commitEvent(input);
-    schedulerRef.current?.consider(result.memory, result.event, contextRef.current);
+    if (shouldAskScheduler(result.event.type)) schedulerRef.current?.consider(result.memory, result.event, contextRef.current);
     return result;
-  }, [commitEvent]);
+  }, [commitEvent, shouldAskScheduler]);
 
   const dismiss = useCallback(() => {
     if (!intervention) return;
@@ -125,7 +135,20 @@ export function useSalesmanEngine(options: SalesmanEngineOptions = {}) {
 
   const completeExperience = useCallback((conversionType?: string) => {
     commitEvent({ type: 'experience_complete', page: memoryRef.current.currentPage, metadata: conversionType ? { conversionType } : undefined });
-    if (conversionType) commitEvent({ type: 'conversion', page: memoryRef.current.currentPage, entityId: conversionType });
+    if (conversionType) {
+      const now = Date.now();
+      const source = [...memoryRef.current.salesman.history].reverse().find((item) => item.outcome === 'clicked' && now - item.at <= 30 * 60_000);
+      commitEvent({
+        type: 'conversion',
+        page: memoryRef.current.currentPage,
+        entityId: conversionType,
+        metadata: {
+          conversionType,
+          sourceInterventionId: source?.id ?? null,
+          assisted: Boolean(source),
+        },
+      });
+    }
   }, [commitEvent]);
 
   const askForHelp = useCallback(() => {
@@ -137,6 +160,7 @@ export function useSalesmanEngine(options: SalesmanEngineOptions = {}) {
     intervention,
     niche,
     config,
+    experimentVariant,
     dismiss,
     engage,
     closeExperience,

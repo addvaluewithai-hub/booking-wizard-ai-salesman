@@ -1,5 +1,6 @@
 import { cleanText, json } from '../_shared/model-router.js';
 import { checkBestEffortRateLimit, isSameOriginRequest, pruneRateLimitBuckets } from '../_shared/request-guard.js';
+import { getStorage } from '../_shared/storage.js';
 
 const MAX_BODY_BYTES = 18_000;
 const ALLOWED_NICHES = new Set(['homepage', 'hpl', 'yachts', 'law-firms']);
@@ -36,17 +37,26 @@ export async function onRequestPost(context) {
   const sessionContext = safeContext(body?.context);
   if (!fields.name || !validEmail(fields.email) || !validUrl(fields.url)) return json({ ok: false, error: 'invalid-lead-fields' }, 400);
 
-  const db = context.env?.DB;
-  if (!db?.prepare) return json({ ok: false, error: 'lead-storage-not-configured' }, 503);
+  const storage = getStorage(context.env);
+  if (!storage) return json({ ok: false, error: 'lead-storage-not-configured' }, 503);
   const id = crypto.randomUUID();
   const createdAt = new Date().toISOString();
   try {
-    await db.prepare(`INSERT INTO leads (id, created_at, niche, name, email, phone, company, website_url, context_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-      .bind(id, createdAt, niche, fields.name, fields.email, fields.phone || null, fields.company || null, fields.url || null, JSON.stringify(sessionContext)).run();
+    await storage.storeLead({
+      id,
+      createdAt,
+      niche,
+      name: fields.name,
+      email: fields.email,
+      phone: fields.phone,
+      company: fields.company,
+      websiteUrl: fields.url,
+      contextJson: JSON.stringify(sessionContext),
+    });
   } catch { return json({ ok: false, error: 'lead-storage-failed' }, 500); }
   return json({ ok: true, stored: true, id });
 }
 
 export async function onRequestGet() {
-  return json({ ok: true, route: '/api/lead', storage: 'Cloudflare D1 binding DB required', note: 'POST only; field validation, same-origin and best-effort rate limiting enabled.' });
+  return json({ ok: true, route: '/api/lead', storage: 'Storage adapter backed by Cloudflare D1 binding DB', note: 'POST only; field validation, same-origin and best-effort rate limiting enabled.' });
 }

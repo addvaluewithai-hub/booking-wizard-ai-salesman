@@ -1,5 +1,6 @@
 import type { VisitorEvent } from '../observer/event-types';
 import type { SessionMemory } from '../memory/types';
+import { hasProhibitedSalesClaim, isLawRoutingCopySafe } from './niche-safety';
 import { SILENT_DECISION, type SalesmanDecision } from './types';
 
 const STRONG_SIGNAL_TYPES = new Set([
@@ -32,6 +33,7 @@ export function ideaSimilarity(a: string, b: string): number {
 }
 
 export function shouldConsiderDecision(memory: SessionMemory, event: VisitorEvent, now = Date.now()): boolean {
+  if (memory.inferred.stage === 'converting') return event.type === 'explicit_help';
   if (memory.experienceActive || memory.formActive) return event.type === 'explicit_help';
   if (memory.salesman.suppressionLevel >= 3 && event.type !== 'explicit_help') return false;
   if (memory.salesman.interventionsShown >= MAX_PROACTIVE_INTERVENTIONS && event.type !== 'explicit_help') return false;
@@ -66,14 +68,12 @@ export function validateDecision(decision: SalesmanDecision, memory: SessionMemo
 
   const message = decision.message?.trim();
   if (!message || message.length > 180) return SILENT_DECISION;
-  if (/(only \d+ left|limited time|act now|discount|guaranteed|definitely|you qualify|strong case)/i.test(message)) return SILENT_DECISION;
+  if (hasProhibitedSalesClaim(message)) return SILENT_DECISION;
 
   const recentMessages = memory.salesman.history.slice(-4).map((item) => item.message).filter(Boolean);
   if (recentMessages.some((previous) => ideaSimilarity(previous, message) >= 0.62)) return SILENT_DECISION;
 
-  if (memory.currentPage.startsWith('/law-firms') && /(you should sue|legal advice|case is worth|you will win|deadline is)/i.test(message)) {
-    return SILENT_DECISION;
-  }
+  if (memory.currentPage.startsWith('/law-firms') && !isLawRoutingCopySafe(message)) return SILENT_DECISION;
 
   return {
     action: 'intervene',

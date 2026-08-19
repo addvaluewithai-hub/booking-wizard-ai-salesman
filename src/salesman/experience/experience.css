@@ -8,10 +8,14 @@
 .exp-reassurance h3,
 .exp-summary h3,
 .exp-conversion-card h3,
+.exp-recommendation-reason h3,
+.exp-upload-card h3,
+.exp-contact-card h3,
 .exp-lead-form h3,
 .exp-success h3 { margin: 0; font-size: clamp(18px, 3vw, 24px); line-height: 1.2; letter-spacing: -.025em; }
 .exp-component-note { margin: 0; color: var(--theme-muted); line-height: 1.55; }
 .exp-choice-grid { display: grid; gap: var(--space-2); }
+.exp-choice-grid--binary { grid-template-columns: 1fr 1fr; }
 .exp-chip-row { display: flex; flex-wrap: wrap; gap: var(--space-2); }
 
 .exp-range-heading { display: flex; justify-content: space-between; gap: var(--space-4); align-items: baseline; }
@@ -25,7 +29,7 @@
 
 .exp-product-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); }
 .exp-product-card { overflow: hidden; border: 1px solid var(--theme-line); border-radius: var(--radius-card); background: var(--theme-surface-raised); }
-.exp-product-card__visual { min-height: 150px; padding: var(--space-3); display: flex; align-items: flex-start; }
+.exp-product-card__visual { min-height: 150px; padding: var(--space-3); display: flex; align-items: flex-start; background-position: center; background-size: cover; }
 .exp-product-card__copy { padding: var(--space-4); }
 .exp-product-card__copy > span { color: var(--theme-muted); font: 700 var(--text-xs) var(--font-mono); }
 .exp-product-card__copy h4 { margin: var(--space-2) 0 var(--space-2); font-size: var(--text-lg); }
@@ -49,13 +53,22 @@
 .exp-reassurance,
 .exp-summary,
 .exp-conversion-card,
+.exp-recommendation-reason,
+.exp-upload-card,
+.exp-contact-card,
 .exp-lead-form,
 .exp-success { padding: var(--space-5); border: 1px solid var(--theme-line); border-radius: var(--radius-card); background: color-mix(in srgb, var(--theme-surface-raised) 76%, transparent); }
 .exp-reassurance > span,
 .exp-conversion-card > span,
+.exp-recommendation-reason > span,
+.exp-upload-card > span,
+.exp-contact-card > span,
 .exp-lead-form > div:first-child > span { display: block; margin-bottom: var(--space-2); color: var(--theme-accent); font-size: var(--text-xs); font-weight: 700; text-transform: uppercase; letter-spacing: .1em; }
 .exp-reassurance p,
 .exp-conversion-card p,
+.exp-recommendation-reason p,
+.exp-upload-card p,
+.exp-contact-card p,
 .exp-success p { margin: var(--space-3) 0 0; color: var(--theme-muted); line-height: 1.55; }
 .exp-conversion-card .ds-button { margin-top: var(--space-4); }
 .exp-summary dl { margin: var(--space-4) 0 0; display: grid; gap: 0; }
@@ -69,14 +82,48 @@
 .exp-success { display: grid; gap: var(--space-3); }
 .exp-success .ds-badge { margin-bottom: var(--space-1); }
 
+.exp-recommendation-reason ul { list-style: none; margin: var(--space-4) 0 0; padding: 0; display: grid; gap: var(--space-2); }
+.exp-recommendation-reason li { display: flex; justify-content: space-between; gap: var(--space-4); padding: 10px 0; border-top: 1px solid var(--theme-line); font-size: var(--text-sm); }
+.exp-recommendation-reason li strong { text-transform: capitalize; }
+.exp-recommendation-reason li span { color: var(--theme-muted); text-align: end; }
+
+.exp-image-choice-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); }
+.exp-image-choice { min-width: 0; display: grid; gap: var(--space-2); }
+.exp-image-choice__visual { width: 100%; min-height: 150px; border: 2px solid transparent; border-radius: var(--radius-card); background-position: center; background-size: cover; cursor: pointer; transition: border-color var(--motion-fast), transform var(--motion-fast); }
+.exp-image-choice__visual:hover { transform: translateY(-1px); }
+.exp-image-choice__visual[aria-pressed="true"] { border-color: var(--theme-accent); }
+.exp-image-choice__visual:focus-visible { outline: 3px solid var(--theme-focus); outline-offset: 3px; }
+
+.exp-upload-card,
+.exp-contact-card { display: grid; gap: var(--space-3); }
+.exp-upload-control { position: relative; display: grid; justify-items: start; gap: var(--space-2); margin-top: var(--space-2); cursor: pointer; }
+.exp-upload-control input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.exp-upload-control:focus-within .exp-upload-button { outline: 3px solid var(--theme-focus); outline-offset: 3px; }
+.exp-upload-control.is-disabled { cursor: wait; opacity: .7; }
+.exp-upload-button,
+.exp-contact-action { min-height: 44px; display: inline-flex; align-items: center; justify-content: center; padding: 0 16px; border: 1px solid var(--theme-line); border-radius: var(--radius-control); background: var(--theme-surface-raised); color: var(--theme-text); font-weight: 700; text-decoration: none; }
+.exp-upload-control small { max-width: 560px; color: var(--theme-muted); line-height: 1.45; }
+.exp-integration-note { padding: var(--space-3); border: 1px dashed var(--theme-line); border-radius: var(--radius-control); }
+.exp-contact-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-1); }
+.exp-contact-action:hover { border-color: var(--theme-accent); color: var(--theme-accent); }
+.exp-contact-action:focus-visible { outline: 3px solid var(--theme-focus); outline-offset: 3px; }
+
 @media (max-width: 620px) {
   .experience-box__status { align-items: flex-start; flex-direction: column; }
   .exp-product-grid,
+  .exp-image-choice-grid,
   .exp-lead-form__fields { grid-template-columns: 1fr; }
-  .exp-product-card__visual { min-height: 128px; }
+  .exp-choice-grid--binary { grid-template-columns: 1fr 1fr; }
+  .exp-product-card__visual,
+  .exp-image-choice__visual { min-height: 128px; }
   .exp-summary dl > div { grid-template-columns: 1fr; gap: 3px; }
 }
 
+@media (max-width: 360px) {
+  .exp-choice-grid--binary { grid-template-columns: 1fr; }
+  .exp-contact-actions { display: grid; grid-template-columns: 1fr; }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .experience-box *, .experience-box *::before, .experience-box *::after { scroll-behavior: auto !important; }
+  .experience-box *, .experience-box *::before, .experience-box *::after { scroll-behavior: auto !important; transition: none !important; }
 }

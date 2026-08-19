@@ -1,16 +1,18 @@
 import type { ExperienceComponent, ExperienceOption, ExperiencePlan } from './types';
 
 const COMPONENT_TYPES = new Set<ExperienceComponent['type']>([
-  'single_select', 'multi_select', 'range', 'quantity', 'product_cards', 'comparison',
-  'date_picker', 'time_slots', 'add_ons', 'lead_capture', 'sample_request', 'quote_request',
-  'book_consultation', 'faq', 'summary',
+  'single_select', 'multi_select', 'yes_no', 'range', 'quantity', 'product_cards', 'comparison',
+  'recommendation_reason', 'image_choice', 'upload_image', 'date_picker', 'time_slots', 'add_ons',
+  'lead_capture', 'sample_request', 'quote_request', 'book_consultation', 'call_or_whatsapp', 'faq', 'summary',
 ]);
 
 const LEAD_FIELDS = new Set(['name', 'email', 'phone', 'company', 'url']);
+const UPLOAD_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 
 export type PlanValidationOptions = {
   allowedComponentTypes?: ExperienceComponent['type'][];
   allowedEntityIds?: string[];
+  allowedContactKeys?: string[];
   maxComponents?: number;
 };
 
@@ -39,7 +41,12 @@ function entityIds(value: unknown, allowed: Set<string>) {
   return [...new Set(ids)];
 }
 
-function validateComponent(raw: unknown, allowedEntities: Set<string>): ExperienceComponent | null {
+function entityId(value: unknown, allowed: Set<string>) {
+  const id = text(value, 120);
+  return id && allowed.has(id) ? id : null;
+}
+
+function validateComponent(raw: unknown, allowedEntities: Set<string>, allowedContacts: Set<string>): ExperienceComponent | null {
   if (!raw || typeof raw !== 'object') return null;
   const item = raw as Record<string, unknown>;
   const type = item.type;
@@ -50,8 +57,14 @@ function validateComponent(raw: unknown, allowedEntities: Set<string>): Experien
     const question = text(item.question, 180);
     const options = validOptions(item.options);
     if (!question || !options?.length) return null;
-    if (type === 'multi_select') return { type, id, question, options, max: typeof item.max === 'number' ? Math.max(1, Math.min(options.length, item.max)) : undefined };
+    if (type === 'multi_select') return { type, id, question, options, max: typeof item.max === 'number' ? Math.max(1, Math.min(options.length, Math.round(item.max))) : undefined };
     return { type, id, question, options } as ExperienceComponent;
+  }
+
+  if (type === 'yes_no') {
+    const question = text(item.question, 180);
+    if (!question) return null;
+    return { type, id, question, yesLabel: text(item.yesLabel, 60), noLabel: text(item.noLabel, 60) };
   }
 
   if (type === 'range' || type === 'quantity') {
@@ -63,12 +76,40 @@ function validateComponent(raw: unknown, allowedEntities: Set<string>): Experien
     return { type, id, question, min, max, step: typeof item.step === 'number' ? item.step : undefined };
   }
 
-  if (type === 'product_cards' || type === 'comparison' || type === 'sample_request') {
+  if (type === 'product_cards' || type === 'comparison' || type === 'sample_request' || type === 'image_choice') {
     const ids = entityIds(item.entityIds, allowedEntities);
     if (!ids) return null;
     if (type === 'product_cards') return { type, id, entityIds: ids, reason: text(item.reason, 220) };
     if (type === 'sample_request') return { type, id, entityIds: ids, title: text(item.title, 120) };
+    if (type === 'image_choice') {
+      const question = text(item.question, 180);
+      if (!question) return null;
+      return { type, id, question, entityIds: ids };
+    }
     return { type, id, entityIds: ids };
+  }
+
+  if (type === 'recommendation_reason') {
+    const groundedId = entityId(item.entityId, allowedEntities);
+    if (!groundedId) return null;
+    return { type, id, entityId: groundedId, title: text(item.title, 120) };
+  }
+
+  if (type === 'upload_image') {
+    const title = text(item.title, 140);
+    if (!title) return null;
+    const accept = item.accept === undefined
+      ? undefined
+      : Array.isArray(item.accept) && item.accept.length > 0 && item.accept.length <= 3 && item.accept.every((mime) => typeof mime === 'string' && UPLOAD_IMAGE_TYPES.has(mime))
+        ? [...new Set(item.accept as string[])]
+        : null;
+    if (accept === null) return null;
+    let maxBytes: number | undefined;
+    if (item.maxBytes !== undefined) {
+      if (typeof item.maxBytes !== 'number' || !Number.isFinite(item.maxBytes) || item.maxBytes < 50_000 || item.maxBytes > 10_000_000) return null;
+      maxBytes = Math.round(item.maxBytes);
+    }
+    return { type, id, title, description: text(item.description, 260), accept, maxBytes };
   }
 
   if (type === 'quote_request') {
@@ -85,9 +126,9 @@ function validateComponent(raw: unknown, allowedEntities: Set<string>): Experien
 
   if (type === 'time_slots') {
     const question = text(item.question, 180);
-    const slots = Array.isArray(item.slots) ? item.slots.filter((slot): slot is string => typeof slot === 'string').slice(0, 12) : [];
+    const slots = Array.isArray(item.slots) ? item.slots.filter((slot): slot is string => typeof slot === 'string' && Boolean(slot.trim())).slice(0, 12).map((slot) => slot.trim().slice(0, 60)) : [];
     if (!question || !slots.length) return null;
-    return { type, id, question, slots };
+    return { type, id, question, slots: [...new Set(slots)] };
   }
 
   if (type === 'lead_capture') {
@@ -100,6 +141,19 @@ function validateComponent(raw: unknown, allowedEntities: Set<string>): Experien
   }
 
   if (type === 'book_consultation') return { type, id, resourceId: text(item.resourceId, 80), title: text(item.title, 120) };
+
+  if (type === 'call_or_whatsapp') {
+    const contactKey = text(item.contactKey, 80);
+    if (!contactKey || !allowedContacts.has(contactKey)) return null;
+    return {
+      type,
+      id,
+      contactKey,
+      title: text(item.title, 120),
+      callLabel: text(item.callLabel, 60),
+      whatsappLabel: text(item.whatsappLabel, 60),
+    };
+  }
 
   if (type === 'faq') {
     const title = text(item.title, 140);
@@ -134,11 +188,12 @@ export function validateExperiencePlan(raw: unknown, options: PlanValidationOpti
   if (value.components.length > maxComponents) return null;
 
   const allowedEntities = new Set(options.allowedEntityIds ?? []);
+  const allowedContacts = new Set(options.allowedContactKeys ?? []);
   const allowedTypes = new Set(options.allowedComponentTypes ?? [...COMPONENT_TYPES]);
   const components: ExperienceComponent[] = [];
 
   for (const rawComponent of value.components) {
-    const component = validateComponent(rawComponent, allowedEntities);
+    const component = validateComponent(rawComponent, allowedEntities, allowedContacts);
     if (!component || !allowedTypes.has(component.type)) return null;
     components.push(component);
   }

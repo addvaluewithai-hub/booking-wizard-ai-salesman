@@ -1,5 +1,6 @@
 import { json } from '../_shared/model-router.js';
 import { checkBestEffortRateLimit, isSameOriginRequest, pruneRateLimitBuckets } from '../_shared/request-guard.js';
+import { getStorage } from '../_shared/storage.js';
 
 const ALLOWED_NICHES = new Set(['homepage', 'hpl', 'yachts', 'law-firms']);
 const ALLOWED_TYPES = new Set([
@@ -21,8 +22,12 @@ function normalizeEvent(value) {
   const stage = clean(value.stage, 40);
   const at = typeof value.at === 'number' && Number.isFinite(value.at) ? Math.round(value.at) : Date.now();
   const suppressionLevel = Number.isInteger(value.suppressionLevel) ? Math.max(0, Math.min(3, value.suppressionLevel)) : 0;
+  const experimentVariant = value.experimentVariant === 'control' || value.experimentVariant === 'treatment' ? value.experimentVariant : '';
+  const conversionKind = type === 'conversion' ? clean(value.conversionKind, 100) : '';
+  const sourceInterventionId = type === 'conversion' ? clean(value.sourceInterventionId, 100) : '';
+  const assisted = type === 'conversion' ? Boolean(value.assisted && sourceInterventionId) : false;
   if (!id || !sessionId || !page || !ALLOWED_TYPES.has(type)) return null;
-  return { id, sessionId, type, niche, page, entityId, stage, at, suppressionLevel };
+  return { id, sessionId, type, niche, page, entityId, stage, at, suppressionLevel, experimentVariant, conversionKind, sourceInterventionId, assisted };
 }
 
 export async function onRequestPost(context) {
@@ -41,16 +46,11 @@ export async function onRequestPost(context) {
   const events = Array.isArray(body?.events) ? body.events.slice(0, 20).map(normalizeEvent).filter(Boolean) : [];
   if (!events.length) return json({ ok: false, error: 'events-required' }, 400);
 
-  const db = context.env?.DB;
-  if (!db?.prepare) return json({ ok: true, stored: false, accepted: events.length });
+  const storage = getStorage(context.env);
+  if (!storage) return json({ ok: true, stored: false, accepted: events.length });
 
   try {
-    const statements = events.map((event) => db.prepare(`
-      INSERT OR IGNORE INTO conversion_events
-        (id, session_id, occurred_at, niche, event_type, page, entity_id, stage, suppression_level)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).bind(event.id, event.sessionId, event.at, event.niche, event.type, event.page, event.entityId || null, event.stage || null, event.suppressionLevel));
-    await db.batch(statements);
+    await storage.storeEvents(events);
     return json({ ok: true, stored: true, accepted: events.length });
   } catch {
     return json({ ok: false, error: 'event-storage-failed' }, 500);
@@ -58,5 +58,5 @@ export async function onRequestPost(context) {
 }
 
 export async function onRequestGet() {
-  return json({ ok: true, route: '/api/event', storage: 'D1 DB binding optional', privacy: 'semantic events + session-scoped anonymous ID only' });
+  return json({ ok: true, route: '/api/event', storage: 'Storage adapter backed by optional D1 DB binding', privacy: 'semantic events + session-scoped anonymous ID + experiment/attribution metadata only' });
 }

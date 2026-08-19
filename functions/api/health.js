@@ -4,39 +4,55 @@ function json(data, status = 200) {
     headers: {
       'content-type': 'application/json; charset=utf-8',
       'cache-control': 'no-store',
+      'x-content-type-options': 'nosniff',
     },
   });
 }
 
+const REQUIRED_TABLES = [
+  'leads',
+  'conversion_events',
+  'sessions',
+  'conversion_attribution',
+  'model_diagnostics',
+];
+
 async function probeD1(db) {
-  if (!db?.prepare) {
-    return {
-      configured: false,
-      leadSchemaReady: false,
-      analyticsSchemaReady: false,
-      schemaProbeOk: false,
-    };
-  }
+  const empty = {
+    configured: false,
+    leadSchemaReady: false,
+    analyticsSchemaReady: false,
+    sessionSchemaReady: false,
+    attributionSchemaReady: false,
+    modelDiagnosticsSchemaReady: false,
+    extendedMeasurementReady: false,
+    schemaProbeOk: false,
+  };
+  if (!db?.prepare) return empty;
 
   try {
+    const placeholders = REQUIRED_TABLES.map(() => '?').join(', ');
     const result = await db
-      .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('leads', 'conversion_events')")
+      .prepare(`SELECT name FROM sqlite_master WHERE type = 'table' AND name IN (${placeholders})`)
+      .bind(...REQUIRED_TABLES)
       .all();
     const names = new Set((result?.results ?? []).map((row) => row?.name));
+    const sessionSchemaReady = names.has('sessions');
+    const attributionSchemaReady = names.has('conversion_attribution');
+    const modelDiagnosticsSchemaReady = names.has('model_diagnostics');
 
     return {
       configured: true,
       leadSchemaReady: names.has('leads'),
       analyticsSchemaReady: names.has('conversion_events'),
+      sessionSchemaReady,
+      attributionSchemaReady,
+      modelDiagnosticsSchemaReady,
+      extendedMeasurementReady: sessionSchemaReady && attributionSchemaReady && modelDiagnosticsSchemaReady,
       schemaProbeOk: true,
     };
   } catch {
-    return {
-      configured: true,
-      leadSchemaReady: false,
-      analyticsSchemaReady: false,
-      schemaProbeOk: false,
-    };
+    return { ...empty, configured: true };
   }
 }
 
@@ -54,6 +70,11 @@ export async function onRequestGet(context) {
       d1SchemaProbeOk: d1.schemaProbeOk,
       leadStorageConfigured: d1.leadSchemaReady,
       analyticsStorageConfigured: d1.analyticsSchemaReady,
+      sessionStorageConfigured: d1.sessionSchemaReady,
+      experimentStorageConfigured: d1.sessionSchemaReady,
+      attributionStorageConfigured: d1.attributionSchemaReady,
+      modelDiagnosticsConfigured: d1.modelDiagnosticsSchemaReady,
+      extendedMeasurementConfigured: d1.extendedMeasurementReady,
     },
     deployment: {
       branch: env.CF_PAGES_BRANCH ?? null,

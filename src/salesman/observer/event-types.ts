@@ -3,6 +3,7 @@ export type VisitorEventType =
   | 'section_view'
   | 'product_view'
   | 'product_revisit'
+  | 'entity_dwell'
   | 'compare_add'
   | 'compare_remove'
   | 'filter_change'

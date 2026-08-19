@@ -13,6 +13,8 @@ import {
 } from '../design-system';
 import { summarizeMemoryForModel } from '../salesman/memory/summarize';
 import { useSalesmanEngine } from '../salesman/runtime/useSalesmanEngine';
+import ExperienceRegistryPlayground from './ExperienceRegistryPlayground';
+import SessionMetricsPanel from './SessionMetricsPanel';
 import './playground.css';
 
 type ThemeName = 'product' | 'hpl' | 'yacht' | 'law';
@@ -136,8 +138,8 @@ export default function DesignSystemPlayground() {
         <div className="playground-section__heading">
           <span>03</span>
           <div>
-            <h2>Behavior fixtures</h2>
-            <p>Fire realistic high-value signals and inspect the compact memory the model receives. Normal page reading alone should not trigger a call.</p>
+            <h2>Behavior fixtures + session metrics</h2>
+            <p>Fire realistic high-value signals, inspect compact model memory, and watch restraint/annoyance metrics update for this anonymous test session.</p>
           </div>
         </div>
         <div className="brain-grid">
@@ -172,6 +174,7 @@ export default function DesignSystemPlayground() {
             <pre>{JSON.stringify(summary, null, 2)}</pre>
           </Surface>
         </div>
+        <SessionMetricsPanel memory={engine.memory} variant={engine.experimentVariant} />
       </section>
 
       <section className="playground-section">
@@ -206,11 +209,22 @@ export default function DesignSystemPlayground() {
         </div>
       </section>
 
+      <section className="playground-section">
+        <div className="playground-section__heading">
+          <span>06</span>
+          <div>
+            <h2>Experience registry coverage</h2>
+            <p>Every trusted component type renders here with fictional deterministic data. Upload uses a local fake adapter that returns only an opaque asset reference.</p>
+          </div>
+        </div>
+        <ExperienceRegistryPlayground />
+      </section>
+
       <Sheet
         open={sheetOpen}
         onClose={() => setSheetOpen(false)}
         title="Experience surface"
-        description="Desktop side sheet becomes a mobile bottom sheet with the same component contract. Escape closes it and focus returns to the trigger."
+        description="Desktop side sheet becomes a mobile bottom sheet with the same component contract. Escape closes it, focus is trapped while open, and focus returns to the trigger."
         footer={<Button onClick={() => setSheetOpen(false)}>Done</Button>}
       >
         <div className="sheet-demo-copy">

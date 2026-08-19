@@ -48,6 +48,18 @@ export function MultiSelectBlock({ component, value, onAnswer }: { component: Ex
   );
 }
 
+export function YesNoBlock({ component, value, onAnswer }: { component: Extract<ExperienceComponent, { type: 'yes_no' }> } & AnswerProps) {
+  return (
+    <section className="exp-block" aria-labelledby={`${component.id}-question`}>
+      <h3 id={`${component.id}-question`}>{component.question}</h3>
+      <div className="exp-choice-grid exp-choice-grid--binary">
+        <ChoiceCard title={component.yesLabel ?? 'Yes'} selected={value === true} onClick={() => onAnswer(true)} />
+        <ChoiceCard title={component.noLabel ?? 'No'} selected={value === false} onClick={() => onAnswer(false)} />
+      </div>
+    </section>
+  );
+}
+
 export function RangeBlock({ component, value, onAnswer }: { component: Extract<ExperienceComponent, { type: 'range' }> } & AnswerProps) {
   const numberValue = typeof value === 'number' ? value : component.min;
   return (

@@ -43,9 +43,28 @@ async function expectHtml(path) {
   if (!response.ok || !contentType.includes('text/html')) {
     throw new Error(`${path} failed: status=${response.status} content-type=${contentType}`);
   }
+  const csp = response.headers.get('content-security-policy') ?? '';
+  if (!csp.includes("default-src 'self'") || !csp.includes("connect-src 'self'") || !csp.includes("object-src 'none'")) {
+    throw new Error(`${path} is missing the expected Content-Security-Policy`);
+  }
+  if ((response.headers.get('x-content-type-options') ?? '').toLowerCase() !== 'nosniff') {
+    throw new Error(`${path} is missing X-Content-Type-Options: nosniff`);
+  }
   const body = await response.text();
   if (!body.includes('id="root"')) throw new Error(`${path} did not return the app shell`);
   console.log(`OK ${path}`);
+}
+
+async function expectJson(path) {
+  const response = await fetchWithTimeout(`${baseUrl}${path}`);
+  const contentType = response.headers.get('content-type') ?? '';
+  if (!response.ok || !contentType.includes('application/json')) {
+    throw new Error(`${path} failed: status=${response.status} content-type=${contentType}`);
+  }
+  const payload = await response.json();
+  if (!payload?.ok) throw new Error(`${path} returned a non-ok JSON contract`);
+  console.log(`OK ${path}`);
+  return payload;
 }
 
 async function verifyDecisionGeneration() {
@@ -82,15 +101,19 @@ async function verifyDecisionGeneration() {
 const health = await waitForCurrentDeployment();
 console.log('Current preview health:', JSON.stringify(health));
 
-if (!health?.readiness?.aiConfigured) throw new Error('GEMINI_API_KEY is not configured in Preview');
-if (!health?.readiness?.d1Configured) throw new Error('D1 DB binding is not configured in Preview');
+if (!health?.readiness?.aiConfigured) throw new Error('GEMINI_API_KEY is not configured in this Cloudflare environment');
+if (!health?.readiness?.d1Configured) throw new Error('D1 DB binding is not configured in this Cloudflare environment');
 if (!health?.readiness?.d1SchemaProbeOk) throw new Error('D1 is bound but the schema readiness probe failed');
 if (!health?.readiness?.leadStorageConfigured) throw new Error('D1 leads schema is missing; run migrations/0001_leads.sql');
 if (!health?.readiness?.analyticsStorageConfigured) throw new Error('D1 conversion-events schema is missing; run migrations/0002_conversion_events.sql');
+if (!health?.readiness?.experimentStorageConfigured || !health?.readiness?.attributionStorageConfigured || !health?.readiness?.modelDiagnosticsConfigured) {
+  throw new Error('D1 extended measurement schema is missing; run migrations/0003_attribution_and_model_diagnostics.sql');
+}
 
 for (const path of ['/', '/hpl', '/yachts', '/law-firms', '/playground']) {
   await expectHtml(path);
 }
 
+await expectJson('/api/salesman');
 await verifyDecisionGeneration();
-console.log('Cloudflare preview smoke test passed.');
+console.log('Cloudflare runtime smoke test passed.');

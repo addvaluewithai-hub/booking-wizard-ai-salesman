@@ -6,15 +6,16 @@ import type { SessionMemory } from '../memory/types';
 import { requestExperiencePlan } from './client';
 import { buildFallbackExperiencePlan } from './fallback';
 import { ExperienceRenderer } from './ExperienceRenderer';
-import type { ExperienceAnswer, ExperienceComponent, ExperienceEntity, ExperiencePlan } from './types';
+import { planSignature } from './plan-control';
+import type { ExperienceAnswer, ExperienceComponent, ExperienceContact, ExperienceEntity, ExperiencePlan, ExperienceUploadHandler } from './types';
 import type { ConversionPayload } from './components/ConversionComponents';
 import './experience.css';
 
 const ALLOWED_BY_NICHE: Record<NicheId, ExperienceComponent['type'][]> = {
-  homepage: ['single_select', 'multi_select', 'summary', 'lead_capture', 'faq'],
-  hpl: ['single_select', 'multi_select', 'product_cards', 'comparison', 'sample_request', 'quote_request', 'lead_capture', 'faq', 'summary'],
-  yachts: ['single_select', 'multi_select', 'quantity', 'product_cards', 'comparison', 'date_picker', 'time_slots', 'add_ons', 'summary', 'lead_capture'],
-  'law-firms': ['single_select', 'date_picker', 'time_slots', 'product_cards', 'book_consultation', 'lead_capture', 'faq', 'summary'],
+  homepage: ['single_select', 'multi_select', 'yes_no', 'summary', 'lead_capture', 'faq'],
+  hpl: ['single_select', 'multi_select', 'yes_no', 'image_choice', 'product_cards', 'comparison', 'recommendation_reason', 'sample_request', 'quote_request', 'lead_capture', 'faq', 'summary'],
+  yachts: ['single_select', 'multi_select', 'yes_no', 'quantity', 'product_cards', 'comparison', 'recommendation_reason', 'date_picker', 'time_slots', 'add_ons', 'summary', 'lead_capture'],
+  'law-firms': ['single_select', 'yes_no', 'date_picker', 'time_slots', 'product_cards', 'recommendation_reason', 'book_consultation', 'lead_capture', 'faq', 'summary'],
 };
 
 export type ExperienceBoxProps = {
@@ -22,6 +23,8 @@ export type ExperienceBoxProps = {
   niche: NicheId;
   memory: SessionMemory;
   entities?: ExperienceEntity[];
+  contacts?: Record<string, ExperienceContact>;
+  onUploadAsset?: ExperienceUploadHandler;
   onClose: () => void;
   onAnswer: (id: string, value: ExperienceAnswer) => void;
   onComplete: (conversionType: string) => void;
@@ -31,18 +34,27 @@ function mergeAnswers(memory: SessionMemory, answers: Record<string, ExperienceA
   return { ...memory, answers: { ...memory.answers, ...answers } as SessionMemory['answers'] };
 }
 
-export function ExperienceBox({ open, niche, memory, entities = [], onClose, onAnswer, onComplete }: ExperienceBoxProps) {
+export function ExperienceBox({ open, niche, memory, entities = [], contacts, onUploadAsset, onClose, onAnswer, onComplete }: ExperienceBoxProps) {
   const initialAnswers = useMemo(() => ({ ...memory.answers }) as Record<string, ExperienceAnswer>, [memory.sessionId]);
   const [answers, setAnswers] = useState<Record<string, ExperienceAnswer>>(initialAnswers);
   const [plan, setPlan] = useState<ExperiencePlan>(() => buildFallbackExperiencePlan({ niche, memory, entities }));
   const [planning, setPlanning] = useState(false);
   const [planVersion, setPlanVersion] = useState(0);
   const lastPlanSignature = useRef('');
+  const contactKeys = useMemo(() => Object.keys(contacts ?? {}), [contacts]);
+  const allowedComponentTypes = useMemo(() => {
+    const allowed = [...ALLOWED_BY_NICHE[niche]];
+    if (onUploadAsset) allowed.push('upload_image');
+    if (contactKeys.length) allowed.push('call_or_whatsapp');
+    return allowed;
+  }, [niche, onUploadAsset, contactKeys.join('|')]);
 
   useEffect(() => {
     if (!open) return;
     const mergedMemory = mergeAnswers(memory, answers);
-    setPlan(buildFallbackExperiencePlan({ niche, memory: mergedMemory, entities }));
+    const fallback = buildFallbackExperiencePlan({ niche, memory: mergedMemory, entities });
+    setPlan(fallback);
+    lastPlanSignature.current = planSignature(fallback);
     setPlanVersion((value) => value + 1);
   }, [open, niche]);
 
@@ -51,8 +63,11 @@ export function ExperienceBox({ open, niche, memory, entities = [], onClose, onA
     const controller = new AbortController();
     const mergedMemory = mergeAnswers(memory, answers);
     const fallback = buildFallbackExperiencePlan({ niche, memory: mergedMemory, entities });
-    const fallbackSignature = JSON.stringify(fallback.components.map((component) => [component.type, component.id]));
-    setPlan(fallback);
+    const fallbackSignature = planSignature(fallback);
+    if (fallbackSignature !== lastPlanSignature.current) {
+      setPlan(fallback);
+      lastPlanSignature.current = fallbackSignature;
+    }
     setPlanning(true);
 
     const timer = window.setTimeout(async () => {
@@ -60,11 +75,12 @@ export function ExperienceBox({ open, niche, memory, entities = [], onClose, onA
         niche,
         memory: mergedMemory,
         entities,
-        allowedComponentTypes: ALLOWED_BY_NICHE[niche],
+        contactKeys,
+        allowedComponentTypes,
       }, controller.signal);
       if (aiPlan) {
-        const signature = JSON.stringify(aiPlan.components.map((component) => [component.type, component.id]));
-        if (signature !== lastPlanSignature.current || signature !== fallbackSignature) {
+        const signature = planSignature(aiPlan);
+        if (signature !== lastPlanSignature.current && signature !== fallbackSignature) {
           setPlan(aiPlan);
           lastPlanSignature.current = signature;
         }
@@ -81,7 +97,7 @@ export function ExperienceBox({ open, niche, memory, entities = [], onClose, onA
   const answer = (id: string, value: ExperienceAnswer) => {
     setAnswers((current) => ({ ...current, [id]: value }));
     onAnswer(id, value);
-    if (plan.nextAction === 'replan' || plan.components.some((component) => component.id === id && ['single_select', 'multi_select', 'range', 'quantity', 'date_picker', 'time_slots', 'add_ons'].includes(component.type))) {
+    if (plan.nextAction === 'replan' || plan.components.some((component) => component.id === id && ['single_select', 'multi_select', 'yes_no', 'image_choice', 'upload_image', 'range', 'quantity', 'date_picker', 'time_slots', 'add_ons'].includes(component.type))) {
       setPlanVersion((version) => version + 1);
     }
   };
@@ -129,11 +145,12 @@ export function ExperienceBox({ open, niche, memory, entities = [], onClose, onA
         ) : (
           <ExperienceRenderer
             plan={plan}
-            data={{ entities }}
+            data={{ entities, contacts }}
             answers={answers}
             onAnswer={answer}
             onConvert={convert}
             onLeadSubmit={submitLead}
+            onUploadAsset={onUploadAsset}
           />
         )}
       </div>

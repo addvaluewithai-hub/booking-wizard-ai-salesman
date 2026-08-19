@@ -34,6 +34,17 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Bundle budget
+        run: node scripts/check-bundle-budget.mjs
+
+      - name: Browser secret boundary
+        run: |
+          if grep -R -n -E 'GEMINI_API_KEY|x-goog-api-key|generativelanguage\.googleapis\.com' src dist; then
+            echo 'Server-only Gemini credential/provider marker found in browser source or bundle.'
+            exit 1
+          fi
+          echo 'Browser bundle contains no Gemini credential/provider markers.'
+
       - name: Cloudflare preview smoke
         if: github.event_name == 'pull_request'
         env:

@@ -2,7 +2,7 @@ import type { VisitorEvent } from '../observer/event-types';
 import type { ConversionStage, SessionMemory, SuppressionLevel } from './types';
 
 const HIGH_INTENT_EVENTS = new Set(['cta_click', 'form_start', 'booking_start', 'explicit_help']);
-const CONSIDERATION_EVENTS = new Set(['product_revisit', 'compare_add', 'price_view', 'spec_view', 'filter_change']);
+const CONSIDERATION_EVENTS = new Set(['product_revisit', 'compare_add', 'price_view', 'spec_view', 'filter_change', 'entity_dwell']);
 
 export function createInitialMemory(sessionId: string, page = '/', locale = 'en'): SessionMemory {
   const now = Date.now();
@@ -107,6 +107,20 @@ export function reduceVisitorEvent(previous: SessionMemory, event: VisitorEvent)
     };
   }
 
+  if (event.type === 'entity_dwell' && event.entityId) {
+    const dwellMs = typeof event.metadata?.dwellMs === 'number' && Number.isFinite(event.metadata.dwellMs)
+      ? Math.max(0, Math.min(120_000, Math.round(event.metadata.dwellMs)))
+      : 0;
+    if (dwellMs) {
+      const existing = memory.viewedEntities[event.entityId] ?? { views: 0, totalDwellMs: 0, lastSeenAt: event.at };
+      memory.viewedEntities[event.entityId] = {
+        ...existing,
+        totalDwellMs: Math.min(600_000, existing.totalDwellMs + dwellMs),
+        lastSeenAt: Math.max(existing.lastSeenAt, event.at),
+      };
+    }
+  }
+
   if (event.type === 'section_view' && event.entityId) {
     memory.viewedSections[event.entityId] = (memory.viewedSections[event.entityId] ?? 0) + 1;
   }
@@ -142,7 +156,7 @@ export function reduceVisitorEvent(previous: SessionMemory, event: VisitorEvent)
   if (event.type === 'form_start' || event.type === 'booking_start') memory.formActive = true;
   if (event.type === 'form_abandon' || event.type === 'booking_abandon' || event.type === 'conversion') memory.formActive = false;
   if (event.type === 'experience_open') memory.experienceActive = true;
-  if (event.type === 'experience_close' || event.type === 'experience_complete') memory.experienceActive = false;
+  if (event.type === 'experience_close' || event.type === 'experience_complete' || event.type === 'conversion') memory.experienceActive = false;
 
   if (event.type === 'salesman_impression') {
     const message = typeof event.metadata?.message === 'string' ? event.metadata.message : '';
