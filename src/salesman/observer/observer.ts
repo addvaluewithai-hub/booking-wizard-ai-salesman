@@ -6,8 +6,11 @@ type ObserverOptions = {
 };
 
 type ObservedElementKind = 'section' | 'entity' | 'cta' | 'price' | 'spec';
+type VisibleEntity = { entityId: string; page: string; startedAt: number };
 
 const SEEN_KEY = 'ai-salesman:seen-entities';
+const MIN_MEANINGFUL_DWELL_MS = 5_000;
+const MAX_RECORDED_DWELL_MS = 120_000;
 
 function loadSeenEntities(): Set<string> {
   if (typeof sessionStorage === 'undefined') return new Set();
@@ -55,9 +58,16 @@ export function classifyEntityVisibility({
   return type;
 }
 
+export function boundedDwellMs(startedAt: number, endedAt: number) {
+  const duration = Math.max(0, endedAt - startedAt);
+  if (duration < MIN_MEANINGFUL_DWELL_MS) return 0;
+  return Math.min(MAX_RECORDED_DWELL_MS, Math.round(duration));
+}
+
 export function createSalesObserver({ onEvent, getPage = () => window.location.pathname }: ObserverOptions) {
   const seenEntities = loadSeenEntities();
   const emittedVisibilityKeys = new Set<string>();
+  const visibleEntities = new Map<string, VisibleEntity>();
   let intersectionObserver: IntersectionObserver | null = null;
   let active = false;
 
@@ -67,13 +77,30 @@ export function createSalesObserver({ onEvent, getPage = () => window.location.p
     return event;
   };
 
+  const finishDwell = (visibilityKey: string, endedAt = Date.now()) => {
+    const activeEntity = visibleEntities.get(visibilityKey);
+    if (!activeEntity) return;
+    visibleEntities.delete(visibilityKey);
+    const dwellMs = boundedDwellMs(activeEntity.startedAt, endedAt);
+    if (!dwellMs) return;
+    emit({
+      type: 'entity_dwell',
+      page: activeEntity.page,
+      entityId: activeEntity.entityId,
+      metadata: { dwellMs },
+    });
+  };
+
+  const flushDwells = (endedAt = Date.now()) => {
+    for (const visibilityKey of [...visibleEntities.keys()]) finishDwell(visibilityKey, endedAt);
+  };
+
   const observeVisibility = () => {
     if (typeof IntersectionObserver === 'undefined') return;
 
     intersectionObserver = new IntersectionObserver(
       (entries) => {
         for (const entry of entries) {
-          if (!entry.isIntersecting || entry.intersectionRatio < 0.45) continue;
           const element = entry.target as HTMLElement;
           const kind = getObservedKind(element);
           if (!kind) continue;
@@ -85,19 +112,27 @@ export function createSalesObserver({ onEvent, getPage = () => window.location.p
             element.id ??
             element.textContent?.trim().slice(0, 80) ??
             'anonymous';
-          const visibilityKey = `${kind}:${identity}:${getPage()}`;
+          const page = getPage();
+          const visibilityKey = `${kind}:${identity}:${page}`;
+          const meaningfullyVisible = entry.isIntersecting && entry.intersectionRatio >= 0.45;
 
           if (kind === 'entity') {
             const entityId = element.dataset.salesEntity;
             if (!entityId) continue;
+            if (!meaningfullyVisible) {
+              finishDwell(visibilityKey);
+              continue;
+            }
+            if (!visibleEntities.has(visibilityKey)) visibleEntities.set(visibilityKey, { entityId, page, startedAt: Date.now() });
             const type = classifyEntityVisibility({ entityId, visibilityKey, seenEntities, emittedVisibilityKeys });
-            if (!type) continue;
-            emit({ type, entityId });
-            saveSeenEntities(seenEntities);
+            if (type) {
+              emit({ type, entityId });
+              saveSeenEntities(seenEntities);
+            }
             continue;
           }
 
-          if (emittedVisibilityKeys.has(visibilityKey)) continue;
+          if (!meaningfullyVisible || emittedVisibilityKeys.has(visibilityKey)) continue;
           if (kind === 'section') {
             emit({ type: 'section_view', entityId: element.dataset.salesSection });
           } else if (kind === 'cta') {
@@ -123,15 +158,11 @@ export function createSalesObserver({ onEvent, getPage = () => window.location.p
     const target = event.target instanceof Element ? event.target.closest<HTMLElement>('[data-sales-cta], [data-compare-action], [data-sales-help]') : null;
     if (!target) return;
 
-    if (target.dataset.salesCta) {
-      emit({ type: 'cta_click', entityId: target.dataset.salesCta });
-    }
+    if (target.dataset.salesCta) emit({ type: 'cta_click', entityId: target.dataset.salesCta });
 
     if (target.dataset.compareAction) {
       const [action, entityId = ''] = target.dataset.compareAction.split(':');
-      if (entityId && (action === 'add' || action === 'remove')) {
-        emit({ type: action === 'add' ? 'compare_add' : 'compare_remove', entityId });
-      }
+      if (entityId && (action === 'add' || action === 'remove')) emit({ type: action === 'add' ? 'compare_add' : 'compare_remove', entityId });
     }
 
     if (target.dataset.salesHelp !== undefined) emit({ type: 'explicit_help' });
@@ -140,7 +171,6 @@ export function createSalesObserver({ onEvent, getPage = () => window.location.p
   const inputHandler = (event: Event) => {
     const target = event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLSelectElement ? event.target : null;
     if (!target) return;
-
     const form = target.closest<HTMLFormElement>('form[data-sales-form], form[data-sales-booking]');
     if (!form || form.dataset.salesStarted === 'true') return;
     form.dataset.salesStarted = 'true';
@@ -150,20 +180,14 @@ export function createSalesObserver({ onEvent, getPage = () => window.location.p
   const changeHandler = (event: Event) => {
     const target = event.target instanceof HTMLInputElement || event.target instanceof HTMLSelectElement ? event.target : null;
     if (!target?.dataset.salesFilter) return;
-    emit({
-      type: 'filter_change',
-      entityId: target.dataset.salesFilter,
-      metadata: { value: target.value },
-    });
+    emit({ type: 'filter_change', entityId: target.dataset.salesFilter, metadata: { value: target.value } });
   };
 
   const pageHideHandler = () => {
+    flushDwells();
     document.querySelectorAll<HTMLFormElement>('form[data-sales-form][data-sales-started="true"], form[data-sales-booking][data-sales-started="true"]').forEach((form) => {
       if (form.dataset.salesCompleted === 'true') return;
-      emit({
-        type: form.dataset.salesBooking !== undefined ? 'booking_abandon' : 'form_abandon',
-        entityId: form.dataset.salesForm || form.dataset.salesBooking,
-      });
+      emit({ type: form.dataset.salesBooking !== undefined ? 'booking_abandon' : 'form_abandon', entityId: form.dataset.salesForm || form.dataset.salesBooking });
     });
   };
 
@@ -180,6 +204,7 @@ export function createSalesObserver({ onEvent, getPage = () => window.location.p
     },
     stop() {
       if (!active || typeof window === 'undefined') return;
+      flushDwells();
       active = false;
       intersectionObserver?.disconnect();
       intersectionObserver = null;
@@ -190,6 +215,7 @@ export function createSalesObserver({ onEvent, getPage = () => window.location.p
     },
     emit,
     routeChanged(path: string) {
+      flushDwells();
       emittedVisibilityKeys.clear();
       emit({ type: 'page_view', page: path });
       intersectionObserver?.disconnect();
