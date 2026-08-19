@@ -1,6 +1,6 @@
 import type { NicheId } from '../../niches/config';
 import type { SessionMemory } from '../memory/types';
-import type { ExperienceEntity, ExperiencePlan } from './types';
+import type { ExperienceComponent, ExperienceEntity, ExperiencePlan } from './types';
 
 type FallbackInput = {
   niche: NicheId;
@@ -160,18 +160,21 @@ export function buildFallbackExperiencePlan({ niche, memory, entities = [] }: Fa
     const slots = Array.isArray(primary?.attributes?.demo_available_slots)
       ? primary.attributes.demo_available_slots.filter((slot): slot is string => typeof slot === 'string')
       : [];
+    const yachtComponents: ExperienceComponent[] = primary ? [
+      { type: 'product_cards', id: 'vessel_matches', entityIds: recommended.length ? recommended : [primary.id], reason: 'Closest configured capacity / current comparison' },
+      ...(slots.length ? [{ type: 'time_slots' as const, id: 'charter_time', question: 'Which fictional demo slot suits you?', slots }] : []),
+      { type: 'add_ons', id: 'charter_add_ons', question: 'Anything to include in the enquiry?', options: [
+        { id: 'none', label: 'Keep it simple' }, { id: 'catering', label: 'Ask about catering' }, { id: 'celebration', label: 'Celebration setup' }, { id: 'water', label: 'Water activities' },
+      ] },
+      { type: 'lead_capture', id: 'charter_enquiry', title: 'Send this fictional charter brief', fields: ['name', 'email', 'phone'], submitLabel: 'Submit charter enquiry' },
+    ].slice(0, 4) : [
+      { type: 'faq', id: 'no_vessel_fit', title: 'No configured match', body: 'This fictional fleet does not contain a vessel configured for the selected party size.' },
+    ];
 
     return {
       title: primary ? `${primary.name} is the closest configured fit to start from.` : 'No configured vessel fits that party size.',
       intro: 'The rate, capacity and time options below come only from the fictional fleet dataset.',
-      components: primary ? [
-        { type: 'product_cards', id: 'vessel_matches', entityIds: recommended.length ? recommended : [primary.id], reason: 'Closest configured capacity / current comparison' },
-        ...(slots.length ? [{ type: 'time_slots' as const, id: 'charter_time', question: 'Which fictional demo slot suits you?', slots }] : []),
-        { type: 'add_ons', id: 'charter_add_ons', question: 'Anything to include in the enquiry?', options: [
-          { id: 'none', label: 'Keep it simple' }, { id: 'catering', label: 'Ask about catering' }, { id: 'celebration', label: 'Celebration setup' }, { id: 'water', label: 'Water activities' },
-        ] },
-        { type: 'lead_capture', id: 'charter_enquiry', title: 'Send this fictional charter brief', fields: ['name', 'email', 'phone'], submitLabel: 'Submit charter enquiry' },
-      ].slice(0, 4) : [{ type: 'faq', id: 'no_vessel_fit', title: 'No configured match', body: 'This fictional fleet does not contain a vessel configured for the selected party size.' }],
+      components: yachtComponents,
       nextAction: primary ? 'capture_lead' : 'replan',
     };
   }
