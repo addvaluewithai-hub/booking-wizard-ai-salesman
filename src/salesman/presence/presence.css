@@ -1,0 +1,92 @@
+.ambient-salesman {
+  max-width: min(390px, calc(100vw - 32px));
+}
+
+.ambient-salesman__message {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 0;
+  border: 0;
+  color: inherit;
+  background: transparent;
+  text-align: start;
+  cursor: pointer;
+}
+
+.ambient-salesman__message > span:nth-child(2) { min-width: 0; }
+.ambient-salesman__message strong { display: block; overflow-wrap: anywhere; }
+.ambient-salesman__dismiss {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 999px;
+  color: var(--theme-muted, #a7abb4);
+  background: transparent;
+  cursor: pointer;
+}
+.ambient-salesman__dismiss:hover { background: rgba(255,255,255,.06); color: var(--theme-text, #fff); }
+.ambient-salesman__message:focus-visible,
+.ambient-salesman__dismiss:focus-visible,
+.manual-salesman:focus-visible { outline: 3px solid var(--theme-focus, #e7c58a); outline-offset: 3px; }
+
+.ambient-salesman--anchored {
+  width: min(380px, calc(100vw - 32px));
+  animation: contextualPresenceIn .28s cubic-bezier(.22,1,.36,1);
+}
+.ambient-salesman--anchored::before {
+  content: '';
+  position: absolute;
+  inset: -5px;
+  z-index: -1;
+  border: 1px solid color-mix(in srgb, var(--theme-accent, #e7c58a) 18%, transparent);
+  border-radius: 27px;
+  pointer-events: none;
+}
+
+.experience-morph-bridge {
+  position: fixed;
+  z-index: 39;
+  right: 22px;
+  bottom: 22px;
+  width: min(390px, calc(100vw - 44px));
+  height: 92px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--presence-border, rgba(231,197,138,.3));
+  border-radius: 22px;
+  background: var(--presence-bg, rgba(18,20,24,.96));
+  box-shadow: var(--shadow-float, 0 24px 80px rgba(0,0,0,.46));
+  pointer-events: none;
+  transform-origin: bottom right;
+  animation: presenceMorphToSheet .18s cubic-bezier(.22,1,.36,1) forwards;
+}
+.experience-morph-bridge--anchored {
+  right: auto;
+  bottom: auto;
+  transform-origin: center;
+}
+
+@keyframes contextualPresenceIn {
+  from { opacity: 0; transform: scale(.96); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes presenceMorphToSheet {
+  from { opacity: 1; border-radius: 22px; transform: scale(1); }
+  to { opacity: .15; border-radius: 30px; transform: scale(1.12); }
+}
+
+@media (max-width: 759px) {
+  .ambient-salesman { left: 12px; right: 12px; bottom: max(12px, env(safe-area-inset-bottom)); max-width: none; width: auto; }
+  .experience-morph-bridge { left: 12px; right: 12px; bottom: max(12px, env(safe-area-inset-bottom)); width: auto; transform-origin: bottom center; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ambient-salesman--anchored,
+  .experience-morph-bridge { animation: none !important; }
+}
