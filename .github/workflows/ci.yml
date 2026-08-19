@@ -11,17 +11,36 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 50
 
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version-file: .node-version
 
       - name: Install dependencies
         run: npm install
 
+      - name: Dependency audit
+        run: npm audit --audit-level=high
+
       - name: Type check
         run: npm run check
 
+      - name: Test
+        run: npm test
+
       - name: Build
         run: npm run build
+
+      - name: Cloudflare preview smoke
+        if: github.event_name == 'pull_request'
+        env:
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          slug=$(printf '%s' "$GITHUB_HEAD_REF" | tr '[:upper:]' '[:lower:]' | sed -E 's#[^a-z0-9]+#-#g; s#^-+|-+$##g')
+          export PREVIEW_BASE_URL="https://${slug}.booking-wizard-ai-salesman.pages.dev"
+          export EXPECTED_COMMIT="$PR_HEAD_SHA"
+          echo "Testing ${PREVIEW_BASE_URL} at PR head ${EXPECTED_COMMIT}"
+          node scripts/preview-smoke.mjs

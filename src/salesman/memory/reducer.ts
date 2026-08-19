@@ -129,8 +129,13 @@ export function reduceVisitorEvent(previous: SessionMemory, event: VisitorEvent)
 
   if (event.type === 'experience_answer' && event.entityId) {
     const value = event.metadata?.value;
-    if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
-      memory.answers[event.entityId] = value;
+    if (
+      typeof value === 'string' ||
+      typeof value === 'number' ||
+      typeof value === 'boolean' ||
+      (Array.isArray(value) && value.every((item) => typeof item === 'string'))
+    ) {
+      memory.answers[event.entityId] = Array.isArray(value) ? [...value].slice(0, 12) : value;
     }
   }
 
