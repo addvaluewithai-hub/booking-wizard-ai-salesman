@@ -38,6 +38,6 @@ jobs:
         run: |
           slug=$(printf '%s' "$GITHUB_HEAD_REF" | tr '[:upper:]' '[:lower:]' | sed -E 's#[^a-z0-9]+#-#g; s#^-+|-+$##g')
           export PREVIEW_BASE_URL="https://${slug}.booking-wizard-ai-salesman.pages.dev"
-          export EXPECTED_COMMIT=$(git log -1 --format=%H "$PR_HEAD_SHA" -- . ':(exclude).github/**')
-          echo "Testing ${PREVIEW_BASE_URL} at latest deployable commit ${EXPECTED_COMMIT}"
+          export EXPECTED_COMMIT="$PR_HEAD_SHA"
+          echo "Testing ${PREVIEW_BASE_URL} at PR head ${EXPECTED_COMMIT}"
           node scripts/preview-smoke.mjs
