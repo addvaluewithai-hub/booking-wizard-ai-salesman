@@ -55,6 +55,18 @@ async function expectHtml(path) {
   console.log(`OK ${path}`);
 }
 
+async function expectJson(path) {
+  const response = await fetchWithTimeout(`${baseUrl}${path}`);
+  const contentType = response.headers.get('content-type') ?? '';
+  if (!response.ok || !contentType.includes('application/json')) {
+    throw new Error(`${path} failed: status=${response.status} content-type=${contentType}`);
+  }
+  const payload = await response.json();
+  if (!payload?.ok) throw new Error(`${path} returned a non-ok JSON contract`);
+  console.log(`OK ${path}`);
+  return payload;
+}
+
 async function verifyDecisionGeneration() {
   const response = await fetchWithTimeout(`${baseUrl}/api/decision`, {
     method: 'POST',
@@ -102,5 +114,6 @@ for (const path of ['/', '/hpl', '/yachts', '/law-firms', '/playground']) {
   await expectHtml(path);
 }
 
+await expectJson('/api/salesman');
 await verifyDecisionGeneration();
 console.log('Cloudflare runtime smoke test passed.');
