@@ -12,7 +12,7 @@ function json(data, status = 200) {
 const REQUIRED_TABLES = [
   'leads',
   'conversion_events',
-  'session_experiments',
+  'sessions',
   'conversion_attribution',
   'model_diagnostics',
 ];
@@ -22,7 +22,7 @@ async function probeD1(db) {
     configured: false,
     leadSchemaReady: false,
     analyticsSchemaReady: false,
-    experimentSchemaReady: false,
+    sessionSchemaReady: false,
     attributionSchemaReady: false,
     modelDiagnosticsSchemaReady: false,
     extendedMeasurementReady: false,
@@ -37,7 +37,7 @@ async function probeD1(db) {
       .bind(...REQUIRED_TABLES)
       .all();
     const names = new Set((result?.results ?? []).map((row) => row?.name));
-    const experimentSchemaReady = names.has('session_experiments');
+    const sessionSchemaReady = names.has('sessions');
     const attributionSchemaReady = names.has('conversion_attribution');
     const modelDiagnosticsSchemaReady = names.has('model_diagnostics');
 
@@ -45,10 +45,10 @@ async function probeD1(db) {
       configured: true,
       leadSchemaReady: names.has('leads'),
       analyticsSchemaReady: names.has('conversion_events'),
-      experimentSchemaReady,
+      sessionSchemaReady,
       attributionSchemaReady,
       modelDiagnosticsSchemaReady,
-      extendedMeasurementReady: experimentSchemaReady && attributionSchemaReady && modelDiagnosticsSchemaReady,
+      extendedMeasurementReady: sessionSchemaReady && attributionSchemaReady && modelDiagnosticsSchemaReady,
       schemaProbeOk: true,
     };
   } catch {
@@ -70,7 +70,8 @@ export async function onRequestGet(context) {
       d1SchemaProbeOk: d1.schemaProbeOk,
       leadStorageConfigured: d1.leadSchemaReady,
       analyticsStorageConfigured: d1.analyticsSchemaReady,
-      experimentStorageConfigured: d1.experimentSchemaReady,
+      sessionStorageConfigured: d1.sessionSchemaReady,
+      experimentStorageConfigured: d1.sessionSchemaReady,
       attributionStorageConfigured: d1.attributionSchemaReady,
       modelDiagnosticsConfigured: d1.modelDiagnosticsSchemaReady,
       extendedMeasurementConfigured: d1.extendedMeasurementReady,
