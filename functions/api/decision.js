@@ -1,5 +1,6 @@
 import { cleanText, json, routeModel } from '../_shared/model-router.js';
 import { getNicheRules } from '../_shared/niche-rules.js';
+import { hasProhibitedSalesClaim, isLawRoutingCopySafe } from '../_shared/niche-safety.js';
 import { checkBestEffortRateLimit, isSameOriginRequest, pruneRateLimitBuckets } from '../_shared/request-guard.js';
 import { storeModelDiagnosticBestEffort } from '../_shared/storage.js';
 
@@ -37,7 +38,7 @@ function validateDecision(value, diagnostics) {
 
   const message = cleanText(value.message, 180);
   if (!message) return silent('Intervention had no usable message.', diagnostics);
-  if (/(only \d+ left|limited time|act now|discount|guaranteed|definitely|you qualify|strong case)/i.test(message)) return silent('Intervention failed factual/safety validation.', diagnostics);
+  if (hasProhibitedSalesClaim(message)) return silent('Intervention failed factual/safety validation.', diagnostics);
   return { action: 'intervene', message, internalReason, confidence, cooldownSeconds, experienceHint: cleanText(value.experienceHint, 80) || undefined, diagnostics };
 }
 
@@ -86,7 +87,9 @@ export async function onRequestPost(context) {
 
   const diagnostics = { model: routed.model, fallbackCount: routed.fallbackCount, latencyMs: routed.latencyMs };
   const decision = validateDecision(extractJson(routed.text), diagnostics);
-  if (niche === 'law-firms' && decision.action === 'intervene' && /(sue|case is worth|you will win|legal advice|deadline)/i.test(decision.message)) return json({ ok: true, decision: silent('Law-firm safety validator rejected model copy.', diagnostics) });
+  if (niche === 'law-firms' && decision.action === 'intervene' && !isLawRoutingCopySafe(decision.message)) {
+    return json({ ok: true, decision: silent('Law-firm safety validator rejected model copy.', diagnostics) });
+  }
   return json({ ok: true, decision });
 }
 
