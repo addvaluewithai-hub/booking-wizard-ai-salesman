@@ -1,5 +1,5 @@
-import { Badge } from '../../../design-system';
-import type { ExperienceComponent, ExperienceEntity } from '../types';
+import { Badge, ChoiceCard } from '../../../design-system';
+import type { ExperienceAnswer, ExperienceComponent, ExperienceEntity } from '../types';
 
 function entityMap(entities: ExperienceEntity[]) {
   return new Map(entities.map((entity) => [entity.id, entity]));
@@ -12,6 +12,11 @@ function attributeRows(entity: ExperienceEntity) {
   }));
 }
 
+function entityVisual(entity: ExperienceEntity) {
+  if (entity.image) return { backgroundImage: `url("${entity.image.replaceAll('"', '%22')}")` };
+  return { background: entity.swatch || 'linear-gradient(135deg,#71604f,#2d2924)' };
+}
+
 export function ProductCardsBlock({ component, entities }: { component: Extract<ExperienceComponent, { type: 'product_cards' }>; entities: ExperienceEntity[] }) {
   const lookup = entityMap(entities);
   const items = component.entityIds.map((id) => lookup.get(id)).filter((entity): entity is ExperienceEntity => Boolean(entity));
@@ -21,7 +26,7 @@ export function ProductCardsBlock({ component, entities }: { component: Extract<
       <div className="exp-product-grid">
         {items.map((entity, index) => (
           <article className="exp-product-card" key={entity.id} data-sales-entity={entity.id}>
-            <div className="exp-product-card__visual" style={{ background: entity.swatch || 'linear-gradient(135deg,#71604f,#2d2924)' }}>
+            <div className="exp-product-card__visual" style={entityVisual(entity)}>
               {index === 0 ? <Badge tone="accent">Best fit</Badge> : null}
             </div>
             <div className="exp-product-card__copy">
@@ -62,6 +67,50 @@ export function ComparisonBlock({ component, entities }: { component: Extract<Ex
             ))}
           </tbody>
         </table>
+      </div>
+    </section>
+  );
+}
+
+export function RecommendationReasonBlock({ component, entities }: { component: Extract<ExperienceComponent, { type: 'recommendation_reason' }>; entities: ExperienceEntity[] }) {
+  const entity = entities.find((item) => item.id === component.entityId);
+  if (!entity) return null;
+  const facts = attributeRows(entity).slice(0, 3);
+  return (
+    <section className="exp-recommendation-reason" data-sales-entity={entity.id}>
+      <span>Why this fit is grounded</span>
+      <h3>{component.title ?? entity.name}</h3>
+      {entity.subtitle ? <p>{entity.subtitle}</p> : null}
+      {facts.length ? <ul>{facts.map((fact) => <li key={fact.key}><strong>{fact.key.replaceAll('_', ' ')}</strong><span>{fact.value}</span></li>)}</ul> : null}
+    </section>
+  );
+}
+
+export function ImageChoiceBlock({ component, entities, value, onAnswer }: {
+  component: Extract<ExperienceComponent, { type: 'image_choice' }>;
+  entities: ExperienceEntity[];
+  value?: ExperienceAnswer;
+  onAnswer: (value: ExperienceAnswer) => void;
+}) {
+  const lookup = entityMap(entities);
+  const items = component.entityIds.map((id) => lookup.get(id)).filter((entity): entity is ExperienceEntity => Boolean(entity));
+  return (
+    <section className="exp-block" aria-labelledby={`${component.id}-question`}>
+      <h3 id={`${component.id}-question`}>{component.question}</h3>
+      <div className="exp-image-choice-grid">
+        {items.map((entity) => (
+          <div className="exp-image-choice" key={entity.id}>
+            <button
+              type="button"
+              className="exp-image-choice__visual"
+              style={entityVisual(entity)}
+              aria-label={`Choose ${entity.name}`}
+              aria-pressed={value === entity.id}
+              onClick={() => onAnswer(entity.id)}
+            />
+            <ChoiceCard title={entity.name} description={entity.subtitle} selected={value === entity.id} onClick={() => onAnswer(entity.id)} />
+          </div>
+        ))}
       </div>
     </section>
   );
