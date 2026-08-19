@@ -19,6 +19,7 @@ export type SalesmanEngineOptions = {
 export type ActiveIntervention = {
   id: string;
   decision: SalesmanDecision;
+  triggerEntityId?: string;
 };
 
 export function useSalesmanEngine(options: SalesmanEngineOptions = {}) {
@@ -68,7 +69,7 @@ export function useSalesmanEngine(options: SalesmanEngineOptions = {}) {
         setMemory(nextMemory);
         saveSessionMemory(nextMemory);
         recordAnalyticsEvent(impression, nextMemory, niche, experimentVariantRef.current);
-        setIntervention({ id, decision });
+        setIntervention({ id, decision, triggerEntityId: trigger.entityId });
       },
     });
     schedulerRef.current = scheduler;
