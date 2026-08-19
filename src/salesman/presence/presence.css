@@ -1,5 +1,9 @@
 .ambient-salesman {
+  width: min(390px, calc(100vw - 44px));
   max-width: min(390px, calc(100vw - 32px));
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  cursor: default;
 }
 
 .ambient-salesman__message {
@@ -23,6 +27,7 @@
   height: 32px;
   display: grid;
   place-items: center;
+  align-self: center;
   border: 0;
   border-radius: 999px;
   color: var(--theme-muted, #a7abb4);
