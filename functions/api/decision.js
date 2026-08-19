@@ -1,6 +1,7 @@
 import { cleanText, json, routeModel } from '../_shared/model-router.js';
 import { getNicheRules } from '../_shared/niche-rules.js';
 import { checkBestEffortRateLimit, isSameOriginRequest, pruneRateLimitBuckets } from '../_shared/request-guard.js';
+import { storeModelDiagnosticBestEffort } from '../_shared/storage.js';
 
 const MAX_BODY_BYTES = 32_000;
 const ALLOWED_ACTIONS = new Set(['silent', 'intervene']);
@@ -40,6 +41,20 @@ function validateDecision(value, diagnostics) {
   return { action: 'intervene', message, internalReason, confidence, cooldownSeconds, experienceHint: cleanText(value.experienceHint, 80) || undefined, diagnostics };
 }
 
+function persistRoutingDiagnostic(context, memory, routed) {
+  const promise = storeModelDiagnosticBestEffort(context.env, {
+    sessionId: cleanText(memory?.sessionId, 100),
+    occurredAt: Date.now(),
+    task: 'decision',
+    model: routed.ok ? routed.model : null,
+    fallbackCount: routed.ok ? routed.fallbackCount : Math.max(0, (routed.attempts?.length ?? 0) - 1),
+    latencyMs: routed.ok ? routed.latencyMs : null,
+    succeeded: routed.ok,
+  });
+  if (typeof context.waitUntil === 'function') context.waitUntil(promise);
+  else void promise;
+}
+
 export async function onRequestPost(context) {
   if (!isSameOriginRequest(context.request)) return json({ ok: false, error: 'cross-origin-request' }, 403);
   pruneRateLimitBuckets();
@@ -66,6 +81,7 @@ export async function onRequestPost(context) {
   const prompt = `VISITOR_DATA_START\nNiche: ${niche}\nMemory: ${safeJson(memory)}\nTriggering signal: ${safeJson(signal, 3_000)}\nVerified business facts: ${safeJson(verifiedFacts, 8_000)}\nAllowed next actions: ${safeJson(allowedActions, 1_500)}\nVISITOR_DATA_END\n\nDecide whether staying silent or giving one useful contextual intervention is better right now.`;
 
   const routed = await routeModel({ apiKey: context.env?.GEMINI_API_KEY, system, prompt, task: 'decision', maxOutputTokens: 220, attemptTimeoutMs: 4_000, overallTimeoutMs: 9_000 });
+  persistRoutingDiagnostic(context, memory, routed);
   if (!routed.ok) return json({ ok: true, decision: silent('AI unavailable; deterministic silent fallback.') });
 
   const diagnostics = { model: routed.model, fallbackCount: routed.fallbackCount, latencyMs: routed.latencyMs };
