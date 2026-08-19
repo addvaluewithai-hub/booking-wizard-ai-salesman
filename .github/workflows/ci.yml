@@ -11,6 +11,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 50
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -31,10 +33,9 @@ jobs:
 
       - name: Cloudflare preview smoke
         if: github.event_name == 'pull_request'
-        env:
-          EXPECTED_COMMIT: ${{ github.event.pull_request.head.sha }}
         run: |
           slug=$(printf '%s' "$GITHUB_HEAD_REF" | tr '[:upper:]' '[:lower:]' | sed -E 's#[^a-z0-9]+#-#g; s#^-+|-+$##g')
           export PREVIEW_BASE_URL="https://${slug}.booking-wizard-ai-salesman.pages.dev"
-          echo "Testing ${PREVIEW_BASE_URL} at ${EXPECTED_COMMIT}"
+          export EXPECTED_COMMIT=$(git log -1 --format=%H -- . ':(exclude).github/**')
+          echo "Testing ${PREVIEW_BASE_URL} at latest deployable commit ${EXPECTED_COMMIT}"
           node scripts/preview-smoke.mjs
