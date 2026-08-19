@@ -92,6 +92,12 @@ export function useSalesmanEngine(options: SalesmanEngineOptions = {}) {
     return () => window.clearTimeout(timer);
   }, [intervention, commitEvent]);
 
+  const emit = useCallback((input: VisitorEventInput) => {
+    const result = commitEvent(input);
+    schedulerRef.current?.consider(result.memory, result.event, contextRef.current);
+    return result;
+  }, [commitEvent]);
+
   const dismiss = useCallback(() => {
     if (!intervention) return;
     commitEvent({ type: 'salesman_dismiss', page: memoryRef.current.currentPage, entityId: intervention.id });
@@ -119,9 +125,8 @@ export function useSalesmanEngine(options: SalesmanEngineOptions = {}) {
   }, [commitEvent]);
 
   const askForHelp = useCallback(() => {
-    const { event, memory: next } = commitEvent({ type: 'explicit_help', page: memoryRef.current.currentPage });
-    schedulerRef.current?.consider(next, event, contextRef.current);
-  }, [commitEvent]);
+    emit({ type: 'explicit_help', page: memoryRef.current.currentPage });
+  }, [emit]);
 
   return {
     memory,
@@ -134,6 +139,6 @@ export function useSalesmanEngine(options: SalesmanEngineOptions = {}) {
     answer,
     completeExperience,
     askForHelp,
-    emit: commitEvent,
+    emit,
   };
 }
