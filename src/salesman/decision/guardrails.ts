@@ -1,6 +1,6 @@
-import { hasProhibitedSalesClaim, isLawRoutingCopySafe } from '../../../functions/_shared/niche-safety.js';
 import type { VisitorEvent } from '../observer/event-types';
 import type { SessionMemory } from '../memory/types';
+import { hasProhibitedSalesClaim, isLawRoutingCopySafe } from './niche-safety';
 import { SILENT_DECISION, type SalesmanDecision } from './types';
 
 const STRONG_SIGNAL_TYPES = new Set([
