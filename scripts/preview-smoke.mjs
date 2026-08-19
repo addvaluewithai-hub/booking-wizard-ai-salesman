@@ -82,15 +82,18 @@ async function verifyDecisionGeneration() {
 const health = await waitForCurrentDeployment();
 console.log('Current preview health:', JSON.stringify(health));
 
-if (!health?.readiness?.aiConfigured) throw new Error('GEMINI_API_KEY is not configured in Preview');
-if (!health?.readiness?.d1Configured) throw new Error('D1 DB binding is not configured in Preview');
+if (!health?.readiness?.aiConfigured) throw new Error('GEMINI_API_KEY is not configured in this Cloudflare environment');
+if (!health?.readiness?.d1Configured) throw new Error('D1 DB binding is not configured in this Cloudflare environment');
 if (!health?.readiness?.d1SchemaProbeOk) throw new Error('D1 is bound but the schema readiness probe failed');
 if (!health?.readiness?.leadStorageConfigured) throw new Error('D1 leads schema is missing; run migrations/0001_leads.sql');
 if (!health?.readiness?.analyticsStorageConfigured) throw new Error('D1 conversion-events schema is missing; run migrations/0002_conversion_events.sql');
+if (!health?.readiness?.experimentStorageConfigured || !health?.readiness?.attributionStorageConfigured || !health?.readiness?.modelDiagnosticsConfigured) {
+  throw new Error('D1 extended measurement schema is missing; run migrations/0003_attribution_and_model_diagnostics.sql');
+}
 
 for (const path of ['/', '/hpl', '/yachts', '/law-firms', '/playground']) {
   await expectHtml(path);
 }
 
 await verifyDecisionGeneration();
-console.log('Cloudflare preview smoke test passed.');
+console.log('Cloudflare runtime smoke test passed.');
