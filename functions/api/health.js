@@ -10,13 +10,17 @@ function json(data, status = 200) {
 
 export async function onRequestGet(context) {
   const env = context.env ?? {};
+  const d1Configured = Boolean(env.DB?.prepare);
 
   return json({
     ok: true,
     app: 'booking-wizard-ai-salesman',
     version: '0.1.0',
-    ai: {
-      configured: Boolean(env.GEMINI_API_KEY),
+    readiness: {
+      aiConfigured: Boolean(env.GEMINI_API_KEY),
+      d1Configured,
+      leadStorageConfigured: d1Configured,
+      analyticsStorageConfigured: d1Configured,
     },
     deployment: {
       branch: env.CF_PAGES_BRANCH ?? null,
