@@ -2,6 +2,7 @@ const PROHIBITED_SALES_CLAIMS = [
   /\bonly\s+\d+\s+left\b/i,
   /\blimited\s+time\b/i,
   /\bact\s+now\b/i,
+  /\bdiscount\b/i,
   /\bguaranteed\b/i,
   /\byou\s+qualify\b/i,
   /\bdefinitely\b/i,
