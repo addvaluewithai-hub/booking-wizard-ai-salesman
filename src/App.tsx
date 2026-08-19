@@ -1,8 +1,10 @@
-import DesignSystemPlayground from './playground/DesignSystemPlayground';
+import { lazy, Suspense } from 'react';
 import HomePage from './homepage/HomePage';
-import HplPage from './niches/hpl/HplPage';
-import YachtPage from './niches/yachts/YachtPage';
-import LawFirmPage from './niches/law-firms/LawFirmPage';
+
+const DesignSystemPlayground = lazy(() => import('./playground/DesignSystemPlayground'));
+const HplPage = lazy(() => import('./niches/hpl/HplPage'));
+const YachtPage = lazy(() => import('./niches/yachts/YachtPage'));
+const LawFirmPage = lazy(() => import('./niches/law-firms/LawFirmPage'));
 
 function ProductHeader() {
   return (
@@ -14,11 +16,36 @@ function ProductHeader() {
   );
 }
 
+function RouteLoading() {
+  return (
+    <main className="app-shell" aria-busy="true" aria-live="polite">
+      <div className="skeleton" style={{ minHeight: '45vh', margin: '1rem' }} aria-label="Loading experience" />
+    </main>
+  );
+}
+
 export default function App() {
   const pathname = window.location.pathname;
-  if (pathname === '/playground') return <div className="app-shell"><ProductHeader /><DesignSystemPlayground /></div>;
-  if (pathname.startsWith('/hpl')) return <HplPage />;
-  if (pathname.startsWith('/yachts')) return <YachtPage />;
-  if (pathname.startsWith('/law-firms')) return <LawFirmPage />;
+
+  if (pathname === '/playground') {
+    return (
+      <Suspense fallback={<RouteLoading />}>
+        <div className="app-shell"><ProductHeader /><DesignSystemPlayground /></div>
+      </Suspense>
+    );
+  }
+
+  if (pathname.startsWith('/hpl')) {
+    return <Suspense fallback={<RouteLoading />}><HplPage /></Suspense>;
+  }
+
+  if (pathname.startsWith('/yachts')) {
+    return <Suspense fallback={<RouteLoading />}><YachtPage /></Suspense>;
+  }
+
+  if (pathname.startsWith('/law-firms')) {
+    return <Suspense fallback={<RouteLoading />}><LawFirmPage /></Suspense>;
+  }
+
   return <HomePage />;
 }
