@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { MODEL_CHAIN, routeModel } from './model-router.js';
+import { MODEL_CHAIN, computeAttemptTimeout, routeModel } from './model-router.js';
 
 function providerResponse(status, text = '') {
   return new Response(JSON.stringify(text ? {
@@ -54,5 +54,25 @@ describe('model router', () => {
     expect(result.ok).toBe(false);
     expect(result.error).toBe('all-models-unavailable');
     expect(result.attempts).toHaveLength(MODEL_CHAIN.length);
+  });
+
+  it('reserves deadline budget for later fallback models', () => {
+    const firstBudget = computeAttemptTimeout({
+      attemptTimeoutMs: 4_000,
+      overallTimeoutMs: 9_000,
+      elapsedMs: 0,
+      remainingModels: 4,
+    });
+    const thirdBudget = computeAttemptTimeout({
+      attemptTimeoutMs: 4_000,
+      overallTimeoutMs: 9_000,
+      elapsedMs: 4_400,
+      remainingModels: 2,
+    });
+
+    expect(firstBudget).toBe(2_175);
+    expect(thirdBudget).toBe(2_150);
+    expect(firstBudget).toBeLessThan(4_000);
+    expect(thirdBudget).toBeGreaterThan(2_000);
   });
 });
