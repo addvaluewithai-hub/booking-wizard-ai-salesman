@@ -37,6 +37,24 @@ function getObservedKind(element: HTMLElement): ObservedElementKind | null {
   return null;
 }
 
+export function classifyEntityVisibility({
+  entityId,
+  visibilityKey,
+  seenEntities,
+  emittedVisibilityKeys,
+}: {
+  entityId: string;
+  visibilityKey: string;
+  seenEntities: Set<string>;
+  emittedVisibilityKeys: Set<string>;
+}): 'product_view' | 'product_revisit' | null {
+  if (!entityId || emittedVisibilityKeys.has(visibilityKey)) return null;
+  const type = seenEntities.has(entityId) ? 'product_revisit' : 'product_view';
+  emittedVisibilityKeys.add(visibilityKey);
+  seenEntities.add(entityId);
+  return type;
+}
+
 export function createSalesObserver({ onEvent, getPage = () => window.location.pathname }: ObserverOptions) {
   const seenEntities = loadSeenEntities();
   const emittedVisibilityKeys = new Set<string>();
@@ -68,16 +86,19 @@ export function createSalesObserver({ onEvent, getPage = () => window.location.p
             element.textContent?.trim().slice(0, 80) ??
             'anonymous';
           const visibilityKey = `${kind}:${identity}:${getPage()}`;
-          if (emittedVisibilityKeys.has(visibilityKey) && kind !== 'entity') continue;
 
           if (kind === 'entity') {
             const entityId = element.dataset.salesEntity;
             if (!entityId) continue;
-            const revisit = seenEntities.has(entityId);
-            emit({ type: revisit ? 'product_revisit' : 'product_view', entityId });
-            seenEntities.add(entityId);
+            const type = classifyEntityVisibility({ entityId, visibilityKey, seenEntities, emittedVisibilityKeys });
+            if (!type) continue;
+            emit({ type, entityId });
             saveSeenEntities(seenEntities);
-          } else if (kind === 'section') {
+            continue;
+          }
+
+          if (emittedVisibilityKeys.has(visibilityKey)) continue;
+          if (kind === 'section') {
             emit({ type: 'section_view', entityId: element.dataset.salesSection });
           } else if (kind === 'cta') {
             emit({ type: 'cta_view', entityId: element.dataset.salesCta });
