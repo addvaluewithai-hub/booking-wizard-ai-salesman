@@ -1,4 +1,4 @@
-import type { ExperienceComponent, ExperiencePlan } from './types';
+import type { ExperienceComponent, ExperienceOption, ExperiencePlan } from './types';
 
 const COMPONENT_TYPES = new Set<ExperienceComponent['type']>([
   'single_select', 'multi_select', 'range', 'quantity', 'product_cards', 'comparison',
@@ -18,17 +18,18 @@ function text(value: unknown, max = 180): string | undefined {
   return typeof value === 'string' && value.trim() ? value.trim().slice(0, max) : undefined;
 }
 
-function validOptions(value: unknown) {
+function validOptions(value: unknown): ExperienceOption[] | null {
   if (!Array.isArray(value)) return null;
-  const options = value.slice(0, 12).map((item) => {
+  const options: ExperienceOption[] = [];
+  for (const item of value.slice(0, 12)) {
     if (!item || typeof item !== 'object') return null;
     const option = item as Record<string, unknown>;
     const id = text(option.id, 60);
     const label = text(option.label, 100);
     if (!id || !label) return null;
-    return { id, label, description: text(option.description, 160) };
-  });
-  return options.every(Boolean) ? options : null;
+    options.push({ id, label, description: text(option.description, 160) });
+  }
+  return options;
 }
 
 function entityIds(value: unknown, allowed: Set<string>) {
