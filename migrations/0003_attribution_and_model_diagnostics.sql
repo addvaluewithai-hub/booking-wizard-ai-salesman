@@ -1,8 +1,15 @@
-CREATE TABLE IF NOT EXISTS session_experiments (
+CREATE TABLE IF NOT EXISTS sessions (
   session_id TEXT PRIMARY KEY,
-  variant TEXT NOT NULL CHECK (variant IN ('control', 'treatment')),
-  assigned_at INTEGER NOT NULL
+  first_seen_at INTEGER NOT NULL,
+  last_seen_at INTEGER NOT NULL,
+  niche TEXT NOT NULL,
+  experiment_variant TEXT NOT NULL DEFAULT 'treatment' CHECK (experiment_variant IN ('control', 'treatment'))
 );
+
+CREATE INDEX IF NOT EXISTS idx_sessions_last_seen
+  ON sessions(last_seen_at DESC);
+CREATE INDEX IF NOT EXISTS idx_sessions_variant
+  ON sessions(experiment_variant, last_seen_at);
 
 CREATE TABLE IF NOT EXISTS conversion_attribution (
   conversion_event_id TEXT PRIMARY KEY,
