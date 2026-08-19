@@ -28,3 +28,13 @@ jobs:
 
       - name: Build
         run: npm run build
+
+      - name: Cloudflare preview smoke
+        if: github.event_name == 'pull_request'
+        env:
+          EXPECTED_COMMIT: ${{ github.event.pull_request.head.sha }}
+        run: |
+          slug=$(printf '%s' "$GITHUB_HEAD_REF" | tr '[:upper:]' '[:lower:]' | sed -E 's#[^a-z0-9]+#-#g; s#^-+|-+$##g')
+          export PREVIEW_BASE_URL="https://${slug}.booking-wizard-ai-salesman.pages.dev"
+          echo "Testing ${PREVIEW_BASE_URL} at ${EXPECTED_COMMIT}"
+          node scripts/preview-smoke.mjs
