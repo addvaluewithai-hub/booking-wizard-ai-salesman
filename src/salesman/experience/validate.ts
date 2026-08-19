@@ -104,12 +104,11 @@ function validateComponent(raw: unknown, allowedEntities: Set<string>, allowedCo
         ? [...new Set(item.accept as string[])]
         : null;
     if (accept === null) return null;
-    const maxBytes = item.maxBytes === undefined
-      ? undefined
-      : typeof item.maxBytes === 'number' && Number.isFinite(item.maxBytes)
-        ? Math.max(50_000, Math.min(10_000_000, Math.round(item.maxBytes)))
-        : null;
-    if (maxBytes === null) return null;
+    let maxBytes: number | undefined;
+    if (item.maxBytes !== undefined) {
+      if (typeof item.maxBytes !== 'number' || !Number.isFinite(item.maxBytes) || item.maxBytes < 50_000 || item.maxBytes > 10_000_000) return null;
+      maxBytes = Math.round(item.maxBytes);
+    }
     return { type, id, title, description: text(item.description, 260), accept, maxBytes };
   }
 
