@@ -1,4 +1,4 @@
-import type { ExperienceEntity } from '../experience/types';
+import type { ExperienceContact, ExperienceEntity, ExperienceUploadHandler } from '../experience/types';
 import { ExperienceBox } from '../experience/ExperienceBox';
 import type { useSalesmanEngine } from '../runtime/useSalesmanEngine';
 
@@ -7,11 +7,13 @@ type Engine = ReturnType<typeof useSalesmanEngine>;
 export type SalesmanLayerProps = {
   engine: Engine;
   entities?: ExperienceEntity[];
+  contacts?: Record<string, ExperienceContact>;
+  onUploadAsset?: ExperienceUploadHandler;
   experienceOpen: boolean;
   onExperienceOpenChange: (open: boolean) => void;
 };
 
-export function SalesmanLayer({ engine, entities = [], experienceOpen, onExperienceOpenChange }: SalesmanLayerProps) {
+export function SalesmanLayer({ engine, entities = [], contacts, onUploadAsset, experienceOpen, onExperienceOpenChange }: SalesmanLayerProps) {
   const engage = () => {
     engine.engage();
     onExperienceOpenChange(true);
@@ -50,6 +52,8 @@ export function SalesmanLayer({ engine, entities = [], experienceOpen, onExperie
         niche={engine.niche}
         memory={engine.memory}
         entities={entities}
+        contacts={contacts}
+        onUploadAsset={onUploadAsset}
         onClose={close}
         onAnswer={engine.answer}
         onComplete={engine.completeExperience}
