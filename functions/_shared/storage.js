@@ -47,15 +47,37 @@ export function createD1Storage(db) {
       ));
       await db.batch(baseStatements);
 
-      // Attribution tables are additive. If migration 0003 has not been applied yet,
-      // base event persistence remains healthy and these enhancements simply no-op.
-      const variants = new Map(events.map((event) => [event.sessionId, event.experimentVariant]).filter(([, variant]) => variant));
-      if (variants.size) {
+      // The measurement schema in migration 0003 is additive. Base event persistence
+      // remains healthy if those tables are temporarily unavailable.
+      const sessionRows = new Map();
+      for (const event of events) {
+        if (!event.sessionId || !event.experimentVariant) continue;
+        const current = sessionRows.get(event.sessionId);
+        sessionRows.set(event.sessionId, {
+          sessionId: event.sessionId,
+          firstSeenAt: current ? Math.min(current.firstSeenAt, event.at) : event.at,
+          lastSeenAt: current ? Math.max(current.lastSeenAt, event.at) : event.at,
+          niche: event.niche,
+          experimentVariant: event.experimentVariant,
+        });
+      }
+      if (sessionRows.size) {
         try {
-          await db.batch([...variants.entries()].map(([sessionId, variant]) => db.prepare(`
-            INSERT OR IGNORE INTO session_experiments (session_id, variant, assigned_at)
-            VALUES (?, ?, ?)
-          `).bind(sessionId, variant, Date.now())));
+          await db.batch([...sessionRows.values()].map((session) => db.prepare(`
+            INSERT INTO sessions (session_id, first_seen_at, last_seen_at, niche, experiment_variant)
+            VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(session_id) DO UPDATE SET
+              first_seen_at = MIN(sessions.first_seen_at, excluded.first_seen_at),
+              last_seen_at = MAX(sessions.last_seen_at, excluded.last_seen_at),
+              niche = excluded.niche,
+              experiment_variant = excluded.experiment_variant
+          `).bind(
+            session.sessionId,
+            session.firstSeenAt,
+            session.lastSeenAt,
+            session.niche,
+            session.experimentVariant,
+          )));
         } catch { /* optional additive schema */ }
       }
 
