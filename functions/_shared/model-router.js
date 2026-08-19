@@ -6,6 +6,8 @@ export const MODEL_CHAIN = [
 ];
 
 const RETRYABLE_STATUSES = new Set([404, 408, 409, 429, 500, 502, 503, 504]);
+const DEADLINE_RESERVE_MS = 300;
+const MIN_ATTEMPT_MS = 250;
 
 export function json(data, status = 200) {
   return new Response(JSON.stringify(data), {
@@ -28,6 +30,13 @@ export function extractText(payload) {
     ?.map((part) => (typeof part?.text === 'string' ? part.text : ''))
     .join('')
     .trim() || '';
+}
+
+export function computeAttemptTimeout({ attemptTimeoutMs, overallTimeoutMs, elapsedMs, remainingModels }) {
+  const remainingOverallMs = Math.max(0, overallTimeoutMs - elapsedMs);
+  if (remainingOverallMs <= DEADLINE_RESERVE_MS || remainingModels <= 0) return 0;
+  const fairShareMs = Math.floor((remainingOverallMs - DEADLINE_RESERVE_MS) / remainingModels);
+  return Math.max(MIN_ATTEMPT_MS, Math.min(attemptTimeoutMs, fairShareMs));
 }
 
 function deadlineSignal(timeoutMs, parentSignal) {
@@ -97,10 +106,22 @@ export async function routeModel({
 
   const overall = deadlineSignal(overallTimeoutMs);
   const attempts = [];
+  const startedAt = Date.now();
 
   try {
-    for (const model of MODEL_CHAIN) {
+    for (let index = 0; index < MODEL_CHAIN.length; index += 1) {
+      const model = MODEL_CHAIN[index];
       if (overall.signal.aborted) break;
+
+      const elapsedMs = Date.now() - startedAt;
+      const timeoutMs = computeAttemptTimeout({
+        attemptTimeoutMs,
+        overallTimeoutMs,
+        elapsedMs,
+        remainingModels: MODEL_CHAIN.length - index,
+      });
+      if (timeoutMs <= 0) break;
+
       try {
         const result = await callModel({
           apiKey,
@@ -108,7 +129,7 @@ export async function routeModel({
           system,
           prompt,
           maxOutputTokens,
-          timeoutMs: attemptTimeoutMs,
+          timeoutMs,
           signal: overall.signal,
         });
         attempts.push({ model, status: result.status, latencyMs: result.latencyMs, ok: result.ok });
@@ -119,7 +140,7 @@ export async function routeModel({
             model,
             text: result.text,
             task,
-            latencyMs: attempts.reduce((sum, item) => sum + item.latencyMs, 0),
+            latencyMs: Date.now() - startedAt,
             fallbackCount: attempts.length - 1,
             usage: result.usage,
             attempts,
@@ -139,7 +160,7 @@ export async function routeModel({
         attempts.push({
           model,
           status: error instanceof DOMException && error.name === 'AbortError' ? 'timeout' : 'network-error',
-          latencyMs: 0,
+          latencyMs: Date.now() - startedAt - attempts.reduce((sum, item) => sum + item.latencyMs, 0),
           ok: false,
         });
       }
