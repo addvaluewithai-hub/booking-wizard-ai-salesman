@@ -29,12 +29,13 @@ describe('vertical session-memory fixtures', () => {
 
     expect(memory.inferred.stage).toBe('considering');
     expect(memory.inferred.hesitation).toBe('active_comparison');
-    expect(memory.inferred.intent).toBe('spec-driven');
-    expect(memory.selectedFilters.tone).toBe('warm');
+    expect(memory.inferred.intent).toBe('choose_decorative_material');
+    expect(memory.selectedFilters.tone).toEqual(['warm']);
     expect(memory.comparisonIds).toEqual(['HPL-WALNUT-01', 'HPL-OAK-02']);
 
     const summary = summarizeMemoryForModel(memory, 2_000);
     expect(summary.entities[0]).toEqual({ id: 'HPL-WALNUT-01', views: 2 });
+    expect(summary.filters.tone).toEqual(['warm']);
     expect(JSON.stringify(summary)).not.toContain('mouse');
   });
 
@@ -50,7 +51,8 @@ describe('vertical session-memory fixtures', () => {
       { type: 'booking_start', entityId: 'charter-request' },
     ]);
 
-    expect(memory.inferred.stage).toBe('ready');
+    expect(memory.inferred.stage).toBe('high-intent');
+    expect(memory.inferred.intent).toBe('choose_yacht_charter');
     expect(memory.formActive).toBe(true);
     expect(memory.answers.party_size).toBe(8);
     expect(memory.answers.occasion).toBe('birthday');
@@ -71,7 +73,8 @@ describe('vertical session-memory fixtures', () => {
       { type: 'booking_start', entityId: 'consultation-request' },
     ]);
 
-    expect(memory.inferred.stage).toBe('ready');
+    expect(memory.inferred.stage).toBe('high-intent');
+    expect(memory.inferred.intent).toBe('find_legal_consultation_path');
     expect(memory.answers).toMatchObject({ matter_category: 'employment', office: 'downtown' });
     expect(memory.viewedEntities['LAWYER-EMPLOYMENT-01'].views).toBe(1);
 
@@ -91,7 +94,8 @@ describe('vertical session-memory fixtures', () => {
       { type: 'experience_complete', entityId: 'pilot-qualification' },
     ]);
 
-    expect(memory.inferred.stage).toBe('ready');
+    expect(memory.inferred.stage).toBe('converting');
+    expect(memory.inferred.intent).toBe('evaluate_ai_salesman');
     expect(memory.answers).toMatchObject({ site_type: 'catalog', conversion_goal: 'qualified-leads' });
     expect(memory.experienceActive).toBe(false);
 
