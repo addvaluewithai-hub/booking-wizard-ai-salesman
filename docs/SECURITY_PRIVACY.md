@@ -33,9 +33,11 @@ Persistent data is intentionally narrow:
 
 - `leads`: explicit qualified lead/contact fields plus compact lead context;
 - `conversion_events`: anonymous semantic event records;
-- `session_experiments`: anonymous control/treatment assignment;
+- `sessions`: anonymous session ID, first/last seen timestamps, current niche and control/treatment assignment only;
 - `conversion_attribution`: conversion kind plus optional source intervention ID and assisted flag;
 - `model_diagnostics`: task, selected model, fallback count, latency, success flag, anonymous session ID when available.
+
+The `sessions` table is measurement plumbing, not a behavioral profile: detailed interests and Experience answers remain in browser session memory rather than being copied into the durable session row.
 
 Model prompts, hidden system policy, chain-of-thought, raw page text, and raw uploaded files are not written to the diagnostics tables.
 
@@ -44,7 +46,7 @@ Model prompts, hidden system policy, chain-of-thought, raw page text, and raw up
 Until customer-specific policy replaces these defaults, use the following operational targets:
 
 - model diagnostics: 30 days;
-- anonymous semantic events, experiment assignment, and conversion attribution: 90 days;
+- anonymous semantic events, minimal sessions, experiment assignment, and conversion attribution: 90 days;
 - qualified leads: retain only as long as required for the active sales process and the customer's documented CRM/privacy policy.
 
 These are policy targets, not an automatic deletion promise. Production launch should pair them with a scheduled cleanup/export process appropriate to the customer and jurisdiction.
