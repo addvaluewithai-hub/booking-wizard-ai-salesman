@@ -84,6 +84,9 @@ console.log('Current preview health:', JSON.stringify(health));
 
 if (!health?.readiness?.aiConfigured) throw new Error('GEMINI_API_KEY is not configured in Preview');
 if (!health?.readiness?.d1Configured) throw new Error('D1 DB binding is not configured in Preview');
+if (!health?.readiness?.d1SchemaProbeOk) throw new Error('D1 is bound but the schema readiness probe failed');
+if (!health?.readiness?.leadStorageConfigured) throw new Error('D1 leads schema is missing; run migrations/0001_leads.sql');
+if (!health?.readiness?.analyticsStorageConfigured) throw new Error('D1 conversion-events schema is missing; run migrations/0002_conversion_events.sql');
 
 for (const path of ['/', '/hpl', '/yachts', '/law-firms', '/playground']) {
   await expectHtml(path);
