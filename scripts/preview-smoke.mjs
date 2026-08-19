@@ -43,6 +43,13 @@ async function expectHtml(path) {
   if (!response.ok || !contentType.includes('text/html')) {
     throw new Error(`${path} failed: status=${response.status} content-type=${contentType}`);
   }
+  const csp = response.headers.get('content-security-policy') ?? '';
+  if (!csp.includes("default-src 'self'") || !csp.includes("connect-src 'self'") || !csp.includes("object-src 'none'")) {
+    throw new Error(`${path} is missing the expected Content-Security-Policy`);
+  }
+  if ((response.headers.get('x-content-type-options') ?? '').toLowerCase() !== 'nosniff') {
+    throw new Error(`${path} is missing X-Content-Type-Options: nosniff`);
+  }
   const body = await response.text();
   if (!body.includes('id="root"')) throw new Error(`${path} did not return the app shell`);
   console.log(`OK ${path}`);
