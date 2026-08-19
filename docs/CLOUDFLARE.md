@@ -1,111 +1,105 @@
 # Cloudflare Pages Deployment
 
-This repository is prepared for Cloudflare Pages with a Vite frontend and Pages Functions under `/functions`.
+This repository deploys a Vite frontend plus Pages Functions under `/functions`.
 
-## Dashboard setup
-
-When importing the GitHub repository:
+## Pages project setup
 
 - Repository: `addvaluewithai-hub/booking-wizard-ai-salesman`
 - Production branch: `main`
 - Build command: `npm run build`
 - Build output directory: `dist`
+- Runtime Node version: pinned in `.node-version`
 
-The `public/_redirects` file provides SPA routing fallback for dedicated niche routes.
+`public/_redirects` provides SPA routing fallback. `public/_headers` applies the standalone Pages security-header/CSP policy.
 
-## Gemini secret — important
+## Gemini secret
 
-The GitHub repository secret named `GEMINI_API_KEY` is useful for GitHub Actions, but **Cloudflare Pages direct Git integration does not automatically receive GitHub Actions secrets at runtime**.
+Cloudflare Pages direct Git integration does **not** inherit GitHub Actions secrets at runtime.
 
-After the Pages project is created:
+In **Settings → Variables and Secrets** add `GEMINI_API_KEY` as an encrypted secret for both:
 
-1. Open the Pages project in Cloudflare.
-2. Go to **Settings → Variables and Secrets**.
-3. Add `GEMINI_API_KEY`.
-4. Mark/encrypt it as a secret.
-5. Configure it for **Production**.
-6. Configure it for **Preview** too, so PR preview URLs can exercise the AI.
-7. Redeploy after adding/changing the secret.
+- Preview
+- Production
 
-The server function reads it from `context.env.GEMINI_API_KEY`.
+Redeploy after adding or changing the secret. Pages Functions read only `context.env.GEMINI_API_KEY`.
 
-Never create a `VITE_GEMINI_API_KEY`; Vite-prefixed values are client-exposed.
+Never create `VITE_GEMINI_API_KEY`; Vite-prefixed values are browser-exposed. CI scans `src/` and the built `dist/` for Gemini credential/provider markers.
+
+## D1 binding and migrations
+
+Create a D1 database and bind it to the Pages project using the exact variable name:
+
+```text
+DB
+```
+
+Configure the binding for Preview and Production. Apply migrations in order:
+
+1. `migrations/0001_leads.sql` — qualified leads
+2. `migrations/0002_conversion_events.sql` — anonymous semantic events
+3. `migrations/0003_attribution_and_model_diagnostics.sql` — experiment assignment, assisted-conversion attribution, and model-routing diagnostics
+
+The third migration is additive. Lead and base event persistence remain functional if it is temporarily pending; attribution/diagnostic writes are best-effort until its tables exist.
 
 ## Pages Functions
 
-Cloudflare automatically turns files in root `/functions` into server routes.
+Current public routes include:
 
-Current route:
+- `GET /api/health` — non-secret runtime/readiness metadata
+- `POST /api/decision` — validated ambient `silent/intervene` decision
+- `POST /api/experience` — validated trusted component plan or deterministic fallback signal
+- `POST /api/lead` — validated qualified-lead persistence
+- `POST /api/event` — anonymous semantic event/attribution persistence
+- `GET|POST /api/salesman` — legacy-compatible model-router endpoint retained during migration
 
-- `GET /api/salesman` — health metadata, no generation
-- `POST /api/salesman` — server-side Gemini/Gemma generation with model fallback
+Model/provider calls happen only inside Pages Functions. Public write/model endpoints apply same-origin checks, request-size limits, validation, and best-effort rate controls.
 
-Planned routes are documented in `docs/ARCHITECTURE.md`.
+## Automated Preview verification
 
-## Preview workflow
-
-Cloudflare Pages can create preview deployments for pull requests.
-
-Recommended autonomous-agent workflow:
-
-1. create branch for phase/task group
-2. push implementation
-3. open PR
-4. wait for Cloudflare preview
-5. test preview at real URL on desktop/mobile
-6. fix visual/functional issues
-7. run checks
-8. merge to `main`
-9. production automatically redeploys
-
-This lets us treat preview URLs as the visual QA loop.
-
-## Build verification locally
-
-```bash
-npm install
-npm run check
-npm run build
-```
-
-The final static app should be in `dist/`.
-
-## Runtime verification after first deployment
-
-Check:
+Every pull request runs the normal code gates, then the Cloudflare Preview smoke script. It waits until the branch Preview reports the exact PR head commit and verifies:
 
 ```text
 /
 /hpl
 /yachts
 /law-firms
-/api/salesman
+/playground
+/api/health
+/api/decision
 ```
 
-`GET /api/salesman` should return JSON identifying the configured model chain without exposing the key.
+The smoke requires:
 
-Then test a POST generation request from the actual frontend.
+- the SPA routes to direct-load,
+- Gemini to be configured server-side,
+- D1 base schema readiness,
+- one live validated model response through the fallback router.
 
-## Recommended later bindings
+## Automated Production verification
 
-Not required for first preview:
+Every push to `main` runs the same code gates and then targets:
 
-- D1 binding for leads + anonymized conversion events
-- optional KV for client/config cache
-- Turnstile for public lead endpoints if abuse appears
+```text
+https://booking-wizard-ai-salesman.pages.dev
+```
 
-Do not introduce persistent visitor memory until privacy behavior is designed.
+The production smoke waits for `CF_PAGES_COMMIT_SHA` to equal the exact GitHub `main` commit before testing. This avoids treating a stale deployment as acceptance.
 
-## Performance notes
+## Manual release review
 
-- code split heavy niche experiences when they become substantial
-- optimize and pre-size all real images
-- do not block initial paint on Gemini
-- salesman can hydrate/observe after page becomes interactive
-- AI failure should not break the host page
+Automated smoke is not a replacement for visual/device accessibility review. Before calling a launch fully accepted, manually review desktop/tablet/mobile layouts, keyboard and screen-reader dialog behavior, reduced motion, 200% zoom, mobile keyboard overlap, and representative slow-network behavior.
+
+## Runtime health
+
+`GET /api/health` intentionally returns booleans and deployment identifiers only. It must not reveal secret values or model prompts.
+
+## Privacy and retention
+
+See [`SECURITY_PRIVACY.md`](./SECURITY_PRIVACY.md). Persistent storage is intentionally limited to qualified leads, anonymous semantic events/experiment/attribution records, and privacy-safe model-routing diagnostics. Session memory remains session-scoped unless a separate consent/retention design is introduced.
 
 ## Official Cloudflare references
 
 - Pages Functions: https://developers.cloudflare.com/pages/functions/
 - Pages Functions bindings/secrets: https://developers.cloudflare.com/pages/functions/bindings/
+- D1: https://developers.cloudflare.com/d1/
 - Vite Pages deployment: https://developers.cloudflare.com/pages/framework-guides/deploy-a-vite3-project/
