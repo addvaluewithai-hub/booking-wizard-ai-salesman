@@ -1,6 +1,7 @@
 import { cleanText, json, routeModel } from '../_shared/model-router.js';
 import { getNicheRules } from '../_shared/niche-rules.js';
 import { checkBestEffortRateLimit, isSameOriginRequest, pruneRateLimitBuckets } from '../_shared/request-guard.js';
+import { storeModelDiagnosticBestEffort } from '../_shared/storage.js';
 
 const MAX_BODY_BYTES = 52_000;
 const KNOWN_COMPONENTS = new Set([
@@ -67,6 +68,20 @@ function validatePlanServer(raw, allowedTypes, entityIds, contactKeys) {
   };
 }
 
+function persistRoutingDiagnostic(context, memory, routed) {
+  const promise = storeModelDiagnosticBestEffort(context.env, {
+    sessionId: cleanText(memory?.sessionId, 100),
+    occurredAt: Date.now(),
+    task: 'experience_plan',
+    model: routed.ok ? routed.model : null,
+    fallbackCount: routed.ok ? routed.fallbackCount : Math.max(0, (routed.attempts?.length ?? 0) - 1),
+    latencyMs: routed.ok ? routed.latencyMs : null,
+    succeeded: routed.ok,
+  });
+  if (typeof context.waitUntil === 'function') context.waitUntil(promise);
+  else void promise;
+}
+
 export async function onRequestPost(context) {
   if (!isSameOriginRequest(context.request)) return json({ ok: false, error: 'cross-origin-request' }, 403);
   pruneRateLimitBuckets();
@@ -100,6 +115,7 @@ export async function onRequestPost(context) {
   const prompt = `VISITOR_DATA_START\nNiche: ${niche}\nMemory: ${safeJson(memory, 13_000)}\nVerified data: ${safeJson({ entities, contactKeys: verifiedContactKeys }, 24_000)}\nVISITOR_DATA_END\n\nPlan the next visual experience. If the visitor already revealed the relevant context, skip that question.`;
 
   const routed = await routeModel({ apiKey: context.env?.GEMINI_API_KEY, system, prompt, task: 'experience_plan', maxOutputTokens: 650, attemptTimeoutMs: 4_800, overallTimeoutMs: 10_500 });
+  persistRoutingDiagnostic(context, memory, routed);
   if (!routed.ok) return json({ ok: true, plan: null, fallback: true });
   const plan = validatePlanServer(extractJson(routed.text), allowedTypes, entityIds, contactKeys);
   if (!plan) return json({ ok: true, plan: null, fallback: true, diagnostics: { model: routed.model, fallbackCount: routed.fallbackCount, validation: 'failed' } });
