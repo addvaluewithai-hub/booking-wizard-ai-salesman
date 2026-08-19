@@ -8,11 +8,13 @@ export type ExperiencePlannerInput = {
   niche: NicheId;
   memory: SessionMemory;
   entities: ExperienceEntity[];
+  contactKeys?: string[];
   allowedComponentTypes: ExperiencePlan['components'][number]['type'][];
 };
 
 export async function requestExperiencePlan(input: ExperiencePlannerInput, signal?: AbortSignal): Promise<ExperiencePlan | null> {
   try {
+    const contactKeys = (input.contactKeys ?? []).slice(0, 12);
     const response = await fetch('/api/experience', {
       method: 'POST',
       signal,
@@ -21,7 +23,7 @@ export async function requestExperiencePlan(input: ExperiencePlannerInput, signa
         niche: input.niche,
         memory: summarizeMemoryForModel(input.memory),
         allowedComponentTypes: input.allowedComponentTypes,
-        verifiedData: { entities: input.entities.slice(0, 40) },
+        verifiedData: { entities: input.entities.slice(0, 40), contactKeys },
       }),
     });
     if (!response.ok) return null;
@@ -29,6 +31,7 @@ export async function requestExperiencePlan(input: ExperiencePlannerInput, signa
     return validateExperiencePlan(payload.plan, {
       allowedComponentTypes: input.allowedComponentTypes,
       allowedEntityIds: input.entities.map((entity) => entity.id),
+      allowedContactKeys: contactKeys,
       maxComponents: 4,
     });
   } catch {
