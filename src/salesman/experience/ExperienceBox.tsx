@@ -6,6 +6,7 @@ import type { SessionMemory } from '../memory/types';
 import { requestExperiencePlan } from './client';
 import { buildFallbackExperiencePlan } from './fallback';
 import { ExperienceRenderer } from './ExperienceRenderer';
+import { planSignature } from './plan-control';
 import type { ExperienceAnswer, ExperienceComponent, ExperienceContact, ExperienceEntity, ExperiencePlan, ExperienceUploadHandler } from './types';
 import type { ConversionPayload } from './components/ConversionComponents';
 import './experience.css';
@@ -51,7 +52,9 @@ export function ExperienceBox({ open, niche, memory, entities = [], contacts, on
   useEffect(() => {
     if (!open) return;
     const mergedMemory = mergeAnswers(memory, answers);
-    setPlan(buildFallbackExperiencePlan({ niche, memory: mergedMemory, entities }));
+    const fallback = buildFallbackExperiencePlan({ niche, memory: mergedMemory, entities });
+    setPlan(fallback);
+    lastPlanSignature.current = planSignature(fallback);
     setPlanVersion((value) => value + 1);
   }, [open, niche]);
 
@@ -60,8 +63,11 @@ export function ExperienceBox({ open, niche, memory, entities = [], contacts, on
     const controller = new AbortController();
     const mergedMemory = mergeAnswers(memory, answers);
     const fallback = buildFallbackExperiencePlan({ niche, memory: mergedMemory, entities });
-    const fallbackSignature = JSON.stringify(fallback.components.map((component) => [component.type, component.id]));
-    setPlan(fallback);
+    const fallbackSignature = planSignature(fallback);
+    if (fallbackSignature !== lastPlanSignature.current) {
+      setPlan(fallback);
+      lastPlanSignature.current = fallbackSignature;
+    }
     setPlanning(true);
 
     const timer = window.setTimeout(async () => {
@@ -73,8 +79,8 @@ export function ExperienceBox({ open, niche, memory, entities = [], contacts, on
         allowedComponentTypes,
       }, controller.signal);
       if (aiPlan) {
-        const signature = JSON.stringify(aiPlan.components.map((component) => [component.type, component.id]));
-        if (signature !== lastPlanSignature.current || signature !== fallbackSignature) {
+        const signature = planSignature(aiPlan);
+        if (signature !== lastPlanSignature.current && signature !== fallbackSignature) {
           setPlan(aiPlan);
           lastPlanSignature.current = signature;
         }
