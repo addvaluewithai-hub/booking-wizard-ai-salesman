@@ -1,6 +1,7 @@
 import type { NicheId } from '../niches/config';
 import type { SessionMemory } from '../salesman/memory/types';
 import type { VisitorEvent } from '../salesman/observer/event-types';
+import type { ExperimentVariant } from './experiment';
 
 type AnalyticsEvent = {
   id: string;
@@ -12,6 +13,10 @@ type AnalyticsEvent = {
   entityId?: string;
   stage: string;
   suppressionLevel: number;
+  experimentVariant: ExperimentVariant;
+  conversionKind?: string;
+  sourceInterventionId?: string;
+  assisted?: boolean;
 };
 
 const queue: AnalyticsEvent[] = [];
@@ -26,7 +31,14 @@ function scheduleFlush() {
   }, 4_000);
 }
 
-export function recordAnalyticsEvent(event: VisitorEvent, memory: SessionMemory, niche: NicheId) {
+function metadataString(event: VisitorEvent, key: string) {
+  const value = event.metadata?.[key];
+  return typeof value === 'string' ? value.slice(0, 100) : undefined;
+}
+
+export function recordAnalyticsEvent(event: VisitorEvent, memory: SessionMemory, niche: NicheId, experimentVariant: ExperimentVariant = 'treatment') {
+  const isConversion = event.type === 'conversion';
+  const sourceInterventionId = isConversion ? metadataString(event, 'sourceInterventionId') : undefined;
   queue.push({
     id: event.id,
     sessionId: memory.sessionId,
@@ -37,6 +49,10 @@ export function recordAnalyticsEvent(event: VisitorEvent, memory: SessionMemory,
     entityId: event.entityId?.slice(0, 120),
     stage: memory.inferred.stage,
     suppressionLevel: memory.salesman.suppressionLevel,
+    experimentVariant,
+    conversionKind: isConversion ? (metadataString(event, 'conversionType') ?? event.entityId?.slice(0, 100)) : undefined,
+    sourceInterventionId,
+    assisted: isConversion ? Boolean(event.metadata?.assisted === true && sourceInterventionId) : undefined,
   });
   if (queue.length >= 8) void flushAnalytics();
   else scheduleFlush();
