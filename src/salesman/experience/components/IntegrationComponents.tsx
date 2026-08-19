@@ -1,5 +1,5 @@
 import { useState, type ChangeEvent } from 'react';
-import { Badge, Button } from '../../../design-system';
+import { Badge } from '../../../design-system';
 import type { ExperienceAnswer, ExperienceComponent, ExperienceContact, ExperienceUploadHandler } from '../types';
 
 const DEFAULT_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
@@ -54,9 +54,9 @@ export function UploadImageBlock({ component, value, onAnswer, onUploadAsset }: 
       {component.description ? <p>{component.description}</p> : null}
       {typeof value === 'string' && value ? <Badge tone="success">Image attached as an opaque asset reference</Badge> : null}
       {onUploadAsset ? (
-        <label className="exp-upload-control">
+        <label className={`exp-upload-control${status === 'uploading' ? ' is-disabled' : ''}`}>
           <input type="file" accept={acceptedTypes.join(',')} onChange={upload} disabled={status === 'uploading'} />
-          <Button type="button" variant="secondary" disabled={status === 'uploading'}>{status === 'uploading' ? 'Uploading…' : 'Choose image'}</Button>
+          <span className="exp-upload-button" aria-hidden="true">{status === 'uploading' ? 'Uploading…' : 'Choose image'}</span>
           <small>Only the returned asset ID enters session memory; the file object and local filename do not.</small>
         </label>
       ) : (
