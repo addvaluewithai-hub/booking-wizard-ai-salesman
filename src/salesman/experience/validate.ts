@@ -92,8 +92,10 @@ function validateComponent(raw: unknown, allowedEntities: Set<string>): Experien
 
   if (type === 'lead_capture') {
     const title = text(item.title, 140);
-    const fields = Array.isArray(item.fields) ? item.fields.filter((field): field is 'name' | 'email' | 'phone' | 'company' | 'url' => typeof field === 'string' && LEAD_FIELDS.has(field)).slice(0, 5) : [];
-    if (!title || !fields.length) return null;
+    if (!Array.isArray(item.fields) || item.fields.length < 1 || item.fields.length > 5) return null;
+    if (item.fields.some((field) => typeof field !== 'string' || !LEAD_FIELDS.has(field))) return null;
+    const fields = item.fields as Array<'name' | 'email' | 'phone' | 'company' | 'url'>;
+    if (!title) return null;
     return { type, id, title, fields: [...new Set(fields)], submitLabel: text(item.submitLabel, 60) };
   }
 
