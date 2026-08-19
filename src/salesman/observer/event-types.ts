@@ -25,7 +25,7 @@ export type VisitorEventType =
   | 'conversion'
   | 'explicit_help';
 
-export type VisitorEventMetadataValue = string | number | boolean | null;
+export type VisitorEventMetadataValue = string | number | boolean | string[] | null;
 
 export type VisitorEvent = {
   id: string;
