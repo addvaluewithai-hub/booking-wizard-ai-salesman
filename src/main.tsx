@@ -4,6 +4,7 @@ import App from './App';
 import './design-system/tokens.css';
 import './design-system/components.css';
 import './styles.css';
+import './salesman/presence/runtime.css';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

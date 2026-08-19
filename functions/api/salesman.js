@@ -1,131 +1,55 @@
-const MODEL_CHAIN = [
-  'gemma-4-26b-a4b-it',
-  'gemma-4-31b-it',
-  'gemini-3.1-flash-lite',
-  'gemini-3.5-flash-lite',
-];
+import { cleanText, json, MODEL_CHAIN, routeModel } from '../_shared/model-router.js';
 
-const RETRYABLE_STATUSES = new Set([400, 404, 408, 409, 429, 500, 502, 503, 504]);
-
-function json(data, status = 200) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: {
-      'content-type': 'application/json; charset=utf-8',
-      'cache-control': 'no-store',
-    },
-  });
-}
-
-function cleanText(value, maxLength) {
-  if (typeof value !== 'string') return '';
-  return value.trim().slice(0, maxLength);
-}
-
-async function callModel({ apiKey, model, system, prompt }) {
-  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`;
-
-  const response = await fetch(endpoint, {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      'x-goog-api-key': apiKey,
-    },
-    body: JSON.stringify({
-      systemInstruction: {
-        parts: [{ text: system }],
-      },
-      contents: [
-        {
-          role: 'user',
-          parts: [{ text: prompt }],
-        },
-      ],
-      generationConfig: {
-        maxOutputTokens: 220,
-      },
-    }),
-  });
-
-  const payload = await response.json().catch(() => ({}));
-  const text = payload?.candidates?.[0]?.content?.parts
-    ?.map((part) => part?.text || '')
-    .join('')
-    .trim();
-
-  return {
-    ok: response.ok && Boolean(text),
-    status: response.status,
-    text,
-    payload,
-  };
-}
+const MAX_BODY_BYTES = 24_000;
 
 export async function onRequestPost(context) {
-  const apiKey = context.env?.GEMINI_API_KEY;
-  if (!apiKey) {
-    return json({
-      ok: false,
-      error: 'GEMINI_API_KEY is not configured in the Cloudflare Pages environment.',
-    }, 503);
-  }
+  const contentLength = Number(context.request.headers.get('content-length') || 0);
+  if (contentLength > MAX_BODY_BYTES) return json({ ok: false, error: 'request-too-large' }, 413);
+
+  const raw = await context.request.text();
+  if (raw.length > MAX_BODY_BYTES) return json({ ok: false, error: 'request-too-large' }, 413);
 
   let body;
   try {
-    body = await context.request.json();
+    body = JSON.parse(raw);
   } catch {
-    return json({ ok: false, error: 'Invalid JSON request body.' }, 400);
+    return json({ ok: false, error: 'invalid-json' }, 400);
   }
 
-  const system = cleanText(body?.system, 6000);
-  const prompt = cleanText(body?.prompt, 12000);
+  const system = cleanText(body?.system, 6_000);
+  const prompt = cleanText(body?.prompt, 12_000);
+  if (!system || !prompt) return json({ ok: false, error: 'system-and-prompt-required' }, 400);
 
-  if (!system || !prompt) {
-    return json({ ok: false, error: 'Both system and prompt are required.' }, 400);
-  }
+  const routed = await routeModel({
+    apiKey: context.env?.GEMINI_API_KEY,
+    system,
+    prompt,
+    task: 'legacy-copy',
+    maxOutputTokens: 220,
+  });
 
-  const attempts = [];
-
-  for (const model of MODEL_CHAIN) {
-    try {
-      const result = await callModel({ apiKey, model, system, prompt });
-      attempts.push({ model, status: result.status, ok: result.ok });
-
-      if (result.ok) {
-        return json({
-          ok: true,
-          model,
-          text: result.text,
-          attempts,
-        });
-      }
-
-      if (!RETRYABLE_STATUSES.has(result.status)) {
-        return json({
-          ok: false,
-          error: 'Gemini API rejected the request.',
-          model,
-          status: result.status,
-          attempts,
-        }, result.status || 502);
-      }
-    } catch (error) {
-      attempts.push({ model, status: 'network-error', ok: false });
-    }
+  if (!routed.ok) {
+    return json({
+      ok: false,
+      error: routed.error,
+      attempts: routed.attempts,
+    }, routed.error === 'missing-api-key' ? 503 : 502);
   }
 
   return json({
-    ok: false,
-    error: 'All configured free-quota models were unavailable. The UI should fall back gracefully and try again later.',
-    attempts,
-  }, 503);
+    ok: true,
+    model: routed.model,
+    text: routed.text,
+    attempts: routed.attempts,
+  });
 }
 
-export async function onRequestGet() {
+export async function onRequestGet(context) {
   return json({
     ok: true,
     route: '/api/salesman',
     models: MODEL_CHAIN,
-    note: 'POST only for generation. API key stays server-side.',
+    aiConfigured: Boolean(context.env?.GEMINI_API_KEY),
+    note: 'Legacy copy endpoint. Ambient decisions use /api/decision.',
   });
 }

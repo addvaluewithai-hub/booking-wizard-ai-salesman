@@ -1,12 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import DesignSystemPlayground from './playground/DesignSystemPlayground';
+import { useSalesmanEngine } from './salesman/runtime/useSalesmanEngine';
 
 type Niche = 'hpl' | 'yachts' | 'law-firms';
-
-type SalesmanDecision = {
-  message: string;
-  model?: string;
-};
 
 const nicheCopy: Record<Niche, { eyebrow: string; title: string; body: string; cta: string }> = {
   hpl: {
@@ -36,29 +32,6 @@ function pathToNiche(pathname: string): Niche | null {
   return null;
 }
 
-async function askSalesman(prompt: string): Promise<SalesmanDecision> {
-  try {
-    const response = await fetch('/api/salesman', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        system:
-          'You are the ambient AI salesman on a premium SaaS website. Write one short, useful, non-pushy intervention. Never use fake urgency. Never sound like a generic chatbot.',
-        prompt,
-      }),
-    });
-
-    if (!response.ok) throw new Error('AI unavailable');
-    const data = (await response.json()) as { text?: string; model?: string };
-    if (!data.text) throw new Error('No AI text');
-    return { message: data.text.trim(), model: data.model };
-  } catch {
-    return {
-      message: 'You are already looking at the product the right way. Want me to show how this would behave on your own website?',
-    };
-  }
-}
-
 function Logo() {
   return (
     <a href="/" className="brand" aria-label="AI Salesman home">
@@ -83,19 +56,28 @@ function Header() {
   );
 }
 
-function ExperienceBox({ onClose }: { onClose: () => void }) {
+type ExperienceBoxProps = {
+  onClose: () => void;
+  onAnswer: (id: string, value: string) => void;
+  onComplete: (conversionType?: string) => void;
+};
+
+function ExperienceBox({ onClose, onAnswer, onComplete }: ExperienceBoxProps) {
   const [step, setStep] = useState(0);
   const [siteType, setSiteType] = useState('');
   const [goal, setGoal] = useState('');
+  const [complete, setComplete] = useState(false);
 
   const steps = [
     {
+      id: 'site_type',
       title: 'What kind of site are you building for?',
       options: ['Product catalog', 'Booking business', 'Professional service', 'Something else'],
       value: siteType,
       setValue: setSiteType,
     },
     {
+      id: 'conversion_goal',
       title: 'What should the salesman help improve?',
       options: ['More leads', 'More bookings', 'Product discovery', 'Fewer abandoned visits'],
       value: goal,
@@ -103,10 +85,27 @@ function ExperienceBox({ onClose }: { onClose: () => void }) {
     },
   ];
 
+  const select = (id: string, option: string, setter: (value: string) => void) => {
+    setter(option);
+    onAnswer(id, option);
+  };
+
+  const finish = () => {
+    onComplete('pilot_interest');
+    setComplete(true);
+  };
+
   return (
     <div className="experience-shell" role="dialog" aria-modal="true" aria-label="Interactive AI Salesman experience">
       <button className="icon-button" onClick={onClose} aria-label="Close experience">×</button>
-      {step < steps.length ? (
+      {complete ? (
+        <>
+          <p className="experience-kicker">Captured in session memory</p>
+          <h2>That is enough context to tailor the next step.</h2>
+          <p className="muted">The production lead flow will persist contact details server-side only after value has been demonstrated.</p>
+          <button className="button button-primary" onClick={onClose}>Return to the site</button>
+        </>
+      ) : step < steps.length ? (
         <>
           <p className="experience-kicker">Interactive experience</p>
           <h2>{steps[step].title}</h2>
@@ -115,7 +114,7 @@ function ExperienceBox({ onClose }: { onClose: () => void }) {
               <button
                 key={option}
                 className={steps[step].value === option ? 'choice active' : 'choice'}
-                onClick={() => steps[step].setValue(option)}
+                onClick={() => select(steps[step].id, option, steps[step].setValue)}
               >
                 {option}
               </button>
@@ -133,49 +132,54 @@ function ExperienceBox({ onClose }: { onClose: () => void }) {
         <>
           <p className="experience-kicker">Now the box knows something useful</p>
           <h2>Your experience should behave differently for {siteType.toLowerCase()}.</h2>
-          <p className="muted">
-            The next production phase will use live page behavior + memory + your answer ({goal.toLowerCase()}) to choose the right components and sales action.
-          </p>
+          <p className="muted">Based on your goal ({goal.toLowerCase()}), the system can choose a visual next step without asking you to repeat context it already learned.</p>
           <div className="result-card">
             <span>Recommended action</span>
             <strong>{goal === 'Product discovery' ? 'Adaptive product matcher' : 'Contextual conversion flow'}</strong>
           </div>
-          <a className="button button-primary" href="mailto:hello@example.com?subject=AI%20Salesman%20pilot">Build this on my site</a>
+          <button className="button button-primary" onClick={finish}>Save this pilot direction</button>
         </>
       )}
     </div>
   );
 }
 
-function AmbientSalesman({ context }: { context: string }) {
-  const [visible, setVisible] = useState(false);
+function AmbientSalesman() {
+  const engine = useSalesmanEngine();
   const [open, setOpen] = useState(false);
-  const [decision, setDecision] = useState<SalesmanDecision | null>(null);
 
-  useEffect(() => {
-    const timer = window.setTimeout(async () => {
-      const next = await askSalesman(
-        `Visitor context: ${context}. They have spent a little time on this page and have not engaged yet. Decide the most useful single sentence to make them curious enough to click.`,
-      );
-      setDecision(next);
-      setVisible(true);
-    }, 2400);
-    return () => window.clearTimeout(timer);
-  }, [context]);
+  const engage = () => {
+    engine.engage();
+    setOpen(true);
+  };
+
+  const close = () => {
+    engine.closeExperience();
+    setOpen(false);
+  };
 
   return (
     <>
-      {visible && !open && (
-        <button className="ambient-salesman" onClick={() => setOpen(true)} aria-label="Open AI Salesman">
+      {!open && engine.intervention ? (
+        <div className="ambient-salesman" role="status" aria-live="polite">
+          <button className="ambient-salesman__message" onClick={engage} aria-label="Open contextual salesman experience">
+            <span className="presence-mark" aria-hidden="true">✦</span>
+            <span>
+              <small>Noticed something</small>
+              <strong>{engine.intervention.decision.message}</strong>
+            </span>
+            <span className="ambient-arrow" aria-hidden="true">↗</span>
+          </button>
+          <button className="ambient-salesman__dismiss" onClick={engine.dismiss} aria-label="Dismiss suggestion">×</button>
+        </div>
+      ) : null}
+      {!open && !engine.intervention ? (
+        <button className="manual-salesman" onClick={engine.askForHelp} data-sales-help aria-label="Ask the site salesman for help">
           <span className="presence-mark" aria-hidden="true">✦</span>
-          <span>
-            <small>Salesman noticed something</small>
-            <strong>{decision?.message}</strong>
-          </span>
-          <span className="ambient-arrow" aria-hidden="true">↗</span>
+          <span>Ask</span>
         </button>
-      )}
-      {open && <ExperienceBox onClose={() => setOpen(false)} />}
+      ) : null}
+      {open ? <ExperienceBox onClose={close} onAnswer={engine.answer} onComplete={engine.completeExperience} /> : null}
     </>
   );
 }
@@ -187,16 +191,14 @@ function Home() {
   return (
     <>
       <main>
-        <section className="hero">
+        <section className="hero" data-sales-section="hero">
           <div className="hero-copy">
             <p className="eyebrow">Not a chatbot. A live website salesman.</p>
             <h1>It watches. Remembers. Knows when to speak.</h1>
-            <p className="hero-text">
-              An AI conversion layer that observes buyer behavior in real time, decides whether intervention is useful, then opens a visual experience instead of a boring chat transcript.
-            </p>
+            <p className="hero-text">An AI conversion layer that observes buyer behavior in real time, decides whether intervention is useful, then opens a visual experience instead of a boring chat transcript.</p>
             <div className="hero-actions">
-              <a className="button button-primary" href="#demo">Watch the behavior</a>
-              <a className="button button-ghost" href="/hpl">Open HPL demo</a>
+              <a className="button button-primary" data-sales-cta="watch-behavior" href="#demo">Watch the behavior</a>
+              <a className="button button-ghost" data-sales-cta="open-hpl-demo" href="/hpl">Open HPL demo</a>
             </div>
             <div className="trust-row" aria-label="Product principles">
               <span>Context aware</span><span>Session memory</span><span>Adaptive UI</span><span>Non-pushy by design</span>
@@ -218,7 +220,7 @@ function Home() {
           </div>
         </section>
 
-        <section className="section" id="how">
+        <section className="section" id="how" data-sales-section="how-it-works">
           <div className="section-heading">
             <p className="eyebrow">Two layers. One continuous relationship.</p>
             <h2>The salesman earns the click. The experience box earns the conversion.</h2>
@@ -230,10 +232,15 @@ function Home() {
           </div>
         </section>
 
-        <section className="section showcase" id="demo">
+        <section className="section showcase" id="demo" data-sales-section="niche-examples">
           <div className="showcase-nav" role="tablist" aria-label="Niche examples">
             {(Object.keys(nicheCopy) as Niche[]).map((niche) => (
-              <button key={niche} className={activeNiche === niche ? 'tab active' : 'tab'} onClick={() => setActiveNiche(niche)}>
+              <button
+                key={niche}
+                className={activeNiche === niche ? 'tab active' : 'tab'}
+                data-sales-cta={`niche-tab-${niche}`}
+                onClick={() => setActiveNiche(niche)}
+              >
                 {niche === 'law-firms' ? 'Law firms' : niche.toUpperCase()}
               </button>
             ))}
@@ -242,11 +249,11 @@ function Home() {
             <p className="eyebrow">{copy.eyebrow}</p>
             <h2>{copy.title}</h2>
             <p>{copy.body}</p>
-            <a href={`/${activeNiche}`} className="button button-primary">{copy.cta}</a>
+            <a href={`/${activeNiche}`} data-sales-cta={`open-${activeNiche}`} className="button button-primary">{copy.cta}</a>
           </div>
         </section>
       </main>
-      <AmbientSalesman context={`Homepage visitor. Current niche tab is ${activeNiche}. They are evaluating an AI website salesman product.`} />
+      <AmbientSalesman />
     </>
   );
 }
@@ -261,14 +268,14 @@ function NichePage({ niche }: { niche: Niche }) {
 
   return (
     <main>
-      <section className={`niche-hero niche-${niche}`}>
+      <section className={`niche-hero niche-${niche}`} data-sales-section={`${niche}-hero`}>
         <a className="back-link" href="/">← Back to product</a>
         <p className="eyebrow">{copy.eyebrow}</p>
         <h1>{copy.title}</h1>
         <p className="hero-text">{copy.body}</p>
         <div className="signal-row">{bullets.map((bullet) => <span key={bullet}>{bullet}</span>)}</div>
       </section>
-      <section className="section two-column">
+      <section className="section two-column" data-sales-section={`${niche}-behavior`}>
         <div>
           <p className="eyebrow">Ambient salesman</p>
           <h2>Before the visitor clicks, the AI is mostly quiet.</h2>
@@ -281,7 +288,7 @@ function NichePage({ niche }: { niche: Niche }) {
           <div><small>After click</small><strong>Open structured experience components</strong></div>
         </div>
       </section>
-      <AmbientSalesman context={`${copy.eyebrow} demo visitor. Signals being demonstrated: ${bullets.join(', ')}.`} />
+      <AmbientSalesman />
     </main>
   );
 }
