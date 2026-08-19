@@ -13,6 +13,7 @@ import {
 } from '../design-system';
 import { summarizeMemoryForModel } from '../salesman/memory/summarize';
 import { useSalesmanEngine } from '../salesman/runtime/useSalesmanEngine';
+import ExperienceRegistryPlayground from './ExperienceRegistryPlayground';
 import './playground.css';
 
 type ThemeName = 'product' | 'hpl' | 'yacht' | 'law';
@@ -204,6 +205,17 @@ export default function DesignSystemPlayground() {
         <div dir="rtl" data-theme="hpl" className="rtl-demo">
           <ChoiceCard title="اختيار المواد" description="مثال لاختبار اتجاه الواجهة ومسافات العناصر." selected meta="HPL" />
         </div>
+      </section>
+
+      <section className="playground-section">
+        <div className="playground-section__heading">
+          <span>06</span>
+          <div>
+            <h2>Experience registry coverage</h2>
+            <p>Every trusted component type renders here with fictional deterministic data. Upload uses a local fake adapter that returns only an opaque asset reference.</p>
+          </div>
+        </div>
+        <ExperienceRegistryPlayground />
       </section>
 
       <Sheet
