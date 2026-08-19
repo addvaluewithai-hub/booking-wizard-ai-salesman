@@ -115,7 +115,7 @@ export function useSalesmanEngine(options: SalesmanEngineOptions = {}) {
     commitEvent({ type: 'experience_close', page: memoryRef.current.currentPage });
   }, [commitEvent]);
 
-  const answer = useCallback((id: string, value: string | number | boolean) => {
+  const answer = useCallback((id: string, value: string | number | boolean | string[]) => {
     commitEvent({ type: 'experience_answer', page: memoryRef.current.currentPage, entityId: id, metadata: { value } });
   }, [commitEvent]);
 
