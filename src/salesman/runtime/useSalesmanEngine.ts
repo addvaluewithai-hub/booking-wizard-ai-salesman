@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { recordAnalyticsEvent } from '../../analytics/client';
 import { NICHE_CONFIGS, nicheFromPath, type NicheId } from '../../niches/config';
 import { applyDecisionCooldown, DecisionScheduler } from '../decision/scheduler';
 import type { SalesmanDecision } from '../decision/types';
@@ -36,8 +37,9 @@ export function useSalesmanEngine(options: SalesmanEngineOptions = {}) {
     memoryRef.current = next;
     setMemory(next);
     saveSessionMemory(next);
+    recordAnalyticsEvent(event, next, niche);
     return { event, memory: next };
-  }, []);
+  }, [niche]);
 
   useEffect(() => {
     const scheduler = new DecisionScheduler({
@@ -56,6 +58,7 @@ export function useSalesmanEngine(options: SalesmanEngineOptions = {}) {
         memoryRef.current = nextMemory;
         setMemory(nextMemory);
         saveSessionMemory(nextMemory);
+        recordAnalyticsEvent(impression, nextMemory, niche);
         setIntervention({ id, decision });
       },
     });
@@ -67,6 +70,7 @@ export function useSalesmanEngine(options: SalesmanEngineOptions = {}) {
         memoryRef.current = next;
         setMemory(next);
         saveSessionMemory(next);
+        recordAnalyticsEvent(event, next, niche);
         scheduler.consider(next, event, contextRef.current);
       },
     });
@@ -79,7 +83,7 @@ export function useSalesmanEngine(options: SalesmanEngineOptions = {}) {
       observerRef.current = null;
       schedulerRef.current = null;
     };
-  }, []);
+  }, [niche]);
 
   useEffect(() => {
     if (!intervention) return;
