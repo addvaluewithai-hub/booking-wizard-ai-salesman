@@ -51,7 +51,7 @@ export function SalesmanLayer({ engine, entities = [], experienceOpen, onExperie
         memory={engine.memory}
         entities={entities}
         onClose={close}
-        onAnswer={(id, value) => engine.answer(id, Array.isArray(value) ? value.join('|') : value)}
+        onAnswer={engine.answer}
         onComplete={engine.completeExperience}
       />
     </>
