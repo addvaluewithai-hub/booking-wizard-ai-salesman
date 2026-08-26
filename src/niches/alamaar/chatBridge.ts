@@ -1,4 +1,5 @@
 import { STEPS, choiceValue, type AnswerKey, type Answers, type WizardStep } from './experience';
+import type { AiUiBlock } from './aiContract';
 
 export type ConversationRole = 'user' | 'assistant';
 
@@ -10,12 +11,13 @@ export type StructuredAnswer = {
 
 export type ConversationTurn = {
   id: string;
-  role: string;
+  role: ConversationRole;
   text: string;
-  kind: string;
+  kind: 'freeform' | 'system' | 'ai';
   createdAt: number;
   stepIndex?: number;
   resolvedAnswer?: StructuredAnswer;
+  ui?: AiUiBlock[];
 };
 
 export type FreeformInterpretation = {
@@ -122,9 +124,7 @@ export function interpretFreeformLocally(message: string, stepIndex: number): Fr
   return {
     intent: 'needs-ai',
     requiresAi: true,
-    assistantText: currentStep
-      ? 'وصلتني. هنفضل عند نفس السؤال دلوقتي.'
-      : 'وصلتني. الترشيحات هتفضل زي ما هي دلوقتي.',
+    assistantText: 'ممكن توضّحها بكلمتين؟',
   };
 }
 
