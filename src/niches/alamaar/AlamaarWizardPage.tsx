@@ -18,8 +18,9 @@ import {
 } from './experience';
 import './alamaar-wizard.css';
 import './conversation.css';
+import './classic-chat.css';
 
-const SESSION_KEY = 'alamaar-guided-material-session-v3';
+const SESSION_KEY = 'alamaar-guided-material-session-v4';
 
 type PersistedSession = {
   stepIndex?: number;
@@ -133,6 +134,18 @@ function ComparePanel({ products, onClear }: { products: AlamaarProduct[]; onCle
   );
 }
 
+function AssistantHistoryBubble({ title, subtitle }: { title: string; subtitle: string }) {
+  return (
+    <div className="alamaar-chat__row alamaar-chat__row--assistant alamaar-chat__row--history">
+      <div className="alamaar-chat__avatar alamaar-chat__avatar--ghost" aria-hidden="true">A</div>
+      <div className="alamaar-chat__bubble alamaar-chat__bubble--assistant">
+        <strong>{title}</strong>
+        <span>{subtitle}</span>
+      </div>
+    </div>
+  );
+}
+
 export default function AlamaarWizardPage() {
   const restored = useMemo(restoreSession, []);
   const [stepIndex, setStepIndex] = useState(() => Math.min(restored.stepIndex ?? 0, STEPS.length));
@@ -151,6 +164,7 @@ export default function AlamaarWizardPage() {
   const advanceTimer = useRef<number | null>(null);
   const freeformTimer = useRef<number | null>(null);
   const frameRef = useRef<number | null>(null);
+  const threadRef = useRef<HTMLDivElement | null>(null);
   const pointerRef = useRef({ x: 0, y: 0 });
 
   const riveSrc = useMemo(() => {
@@ -195,9 +209,19 @@ export default function AlamaarWizardPage() {
     .filter((product): product is AlamaarProduct => Boolean(product));
   const answeredCount = Object.values(answers).filter(Boolean).length;
   const canRevealEarly = !isResults && stepIndex >= 1 && answeredCount >= 2;
-  const completedTurns = STEPS
+
+  const completedSteps = STEPS
     .map((step, index) => ({ step, index, label: answerLabel(step.key, answers[step.key]) }))
     .filter((item) => Boolean(item.label) && (isResults || item.index < stepIndex));
+
+  const unresolvedFreeformTurns = freeformTurns.filter((turn) => !turn.resolvedAnswer);
+
+  useEffect(() => {
+    window.requestAnimationFrame(() => {
+      if (!threadRef.current) return;
+      threadRef.current.scrollTo({ top: threadRef.current.scrollHeight, behavior: 'smooth' });
+    });
+  }, [chatStatus, freeformTurns.length, isResults, selectedValue, stepIndex]);
 
   const clearAdvance = () => {
     if (advanceTimer.current) {
@@ -209,7 +233,7 @@ export default function AlamaarWizardPage() {
   const triggerApprove = () => {
     setReaction('approve');
     if (reactionTimer.current) window.clearTimeout(reactionTimer.current);
-    reactionTimer.current = window.setTimeout(() => setReaction('idle'), 560);
+    reactionTimer.current = window.setTimeout(() => setReaction('idle'), 520);
   };
 
   const scheduleAdvance = (targetIndex: number) => {
@@ -218,11 +242,11 @@ export default function AlamaarWizardPage() {
       setReaction('idle');
       setStepIndex(Math.min(targetIndex, STEPS.length));
       advanceTimer.current = null;
-    }, 640);
+    }, 680);
   };
 
   const selectChoice = (choice: Choice) => {
-    if (!currentStep) return;
+    if (!currentStep || selectedValue) return;
     const value = choiceValue(choice);
     setAnswers((current) => ({ ...current, [currentStep.key]: value }));
     triggerApprove();
@@ -284,23 +308,17 @@ export default function AlamaarWizardPage() {
       text: message,
       kind: 'freeform',
       createdAt: Date.now(),
+      stepIndex,
+      resolvedAnswer: interpretation.answer,
     };
 
-    setFreeformTurns((current) => [...current, userTurn].slice(-8));
+    setFreeformTurns((current) => [...current, userTurn].slice(-12));
     setComposer('');
     setComposerFocused(false);
     setChatStatus('thinking');
 
     if (freeformTimer.current) window.clearTimeout(freeformTimer.current);
     freeformTimer.current = window.setTimeout(() => {
-      const assistantTurn: ConversationTurn = {
-        id: turnId('assistant'),
-        role: 'assistant',
-        text: interpretation.assistantText,
-        kind: 'system',
-        createdAt: Date.now(),
-      };
-      setFreeformTurns((current) => [...current, assistantTurn].slice(-8));
       setChatStatus('idle');
 
       if (interpretation.answer && currentStep) {
@@ -312,9 +330,20 @@ export default function AlamaarWizardPage() {
           triggerApprove();
           scheduleAdvance(interpretation.nextStepIndex ?? stepIndex + 1);
         }
+      } else {
+        const assistantTurn: ConversationTurn = {
+          id: turnId('assistant'),
+          role: 'assistant',
+          text: interpretation.assistantText,
+          kind: 'system',
+          createdAt: Date.now(),
+          stepIndex,
+        };
+        setFreeformTurns((current) => [...current, assistantTurn].slice(-12));
       }
+
       freeformTimer.current = null;
-    }, interpretation.requiresAi ? 760 : 420);
+    }, interpretation.requiresAi ? 760 : 360);
   };
 
   const handlePointerMove = (event: PointerEvent<HTMLElement>) => {
@@ -345,7 +374,7 @@ export default function AlamaarWizardPage() {
         <a className="alamaar-demo__header-cta" href="https://wa.me/201008897060" target="_blank" rel="noreferrer">تواصل معنا</a>
       </header>
 
-      <main className="alamaar-demo__stage">
+      <main className="alamaar-demo__stage alamaar-chat-stage">
         <div className="alamaar-demo__background" aria-hidden="true">
           <div className="alamaar-demo__panel alamaar-demo__panel--one" style={{ transform: `translate3d(${look.x * -0.025}px, ${look.y * -0.012}px, 0) rotate(-6deg)` }} />
           <div className="alamaar-demo__panel alamaar-demo__panel--two" style={{ transform: `translate3d(${look.x * 0.018}px, ${look.y * -0.009}px, 0) rotate(2deg)` }} />
@@ -353,177 +382,208 @@ export default function AlamaarWizardPage() {
           <div className="alamaar-demo__grain" />
           <div className="alamaar-demo__hero-copy">
             <span>HPL</span>
-            <strong>اختيار خامة كأنه حوار، مش فورم.</strong>
+            <strong>اختيار خامة كأنه شات، بس أسرع وأوضح.</strong>
           </div>
         </div>
         <div className="alamaar-demo__veil" />
 
-        <section className={`alamaar-conversation-shell ${isResults ? 'is-results' : ''}`} aria-live="polite">
-          <div className="alamaar-conversation__mascot-seat" aria-label="مساعد اختيار الخامات">
-            <MascotStage
-              state={characterState}
-              stepIndex={stepIndex}
-              lookX={look.x}
-              lookY={look.y}
-              talking={false}
-              engaged
-              seated
-              riveSrc={riveSrc}
-            />
-          </div>
+        <section className={`alamaar-chat-shell ${isResults ? 'is-results' : ''}`} aria-label="محادثة اختيار الخامات">
+          <header className="alamaar-chat__topbar">
+            <div>
+              <span className="alamaar-chat__presence"><i /> MATERIAL CONCIERGE</span>
+              <strong>{chatStatus === 'thinking' ? 'بفهم الرسالة…' : 'رد باختيار، أو اكتب بطريقتك.'}</strong>
+            </div>
+            <div className="alamaar-chat__progress" aria-label={`فهمت ${answeredCount} من ${STEPS.length}`}>
+              <span>{answeredCount}/{STEPS.length}</span>
+              <i><b style={{ width: `${(answeredCount / STEPS.length) * 100}%` }} /></i>
+            </div>
+          </header>
 
-          <div className="alamaar-conversation-card">
-            <header className="alamaar-conversation__header">
-              <div>
-                <span className="alamaar-conversation__presence"><i /> MATERIAL CONCIERGE</span>
-                <strong>{chatStatus === 'thinking' ? 'بفهم اللي كتبته…' : 'اختار بسرعة، أو اكتب بطريقتك.'}</strong>
-              </div>
-              <div className="alamaar-conversation__understanding">
-                <span>فهمت {answeredCount} من {STEPS.length}</span>
-                <i><b style={{ width: `${(answeredCount / STEPS.length) * 100}%` }} /></i>
-              </div>
-            </header>
+          <div className="alamaar-chat__thread" ref={threadRef}>
+            <div className="alamaar-chat__intro">
+              <span>ابدأ باختيار سريع، ولو إجابتك مختلفة اكتبها تحت.</span>
+            </div>
 
-            {completedTurns.length ? (
-              <div className="alamaar-conversation__memory" aria-label="ملخص الحوار">
-                {completedTurns.slice(-4).map(({ step, index, label }, visibleIndex, visible) => (
-                  <div className={visibleIndex < visible.length - 2 ? 'is-faded' : ''} key={step.key}>
-                    <span>{step.title}</span>
-                    <button type="button" onClick={() => goToStep(index)}>{label} <b>✓</b></button>
+            {completedSteps.map(({ step, index, label }) => {
+              const typedAnswer = freeformTurns
+                .filter((turn) => turn.role === 'user' && turn.stepIndex === index && turn.resolvedAnswer)
+                .at(-1);
+              return (
+                <div className="alamaar-chat__exchange" key={step.key}>
+                  <AssistantHistoryBubble title={step.title} subtitle={step.subtitle} />
+                  <div className="alamaar-chat__row alamaar-chat__row--user">
+                    <button className="alamaar-chat__bubble alamaar-chat__bubble--user alamaar-chat__bubble--editable" type="button" onClick={() => goToStep(index)}>
+                      <span>{typedAnswer?.text ?? label}</span>
+                      <small>{typedAnswer ? `فهمتها: ${label}` : 'تعديل الاختيار'} · ✓</small>
+                    </button>
                   </div>
-                ))}
-              </div>
-            ) : null}
+                </div>
+              );
+            })}
 
-            {freeformTurns.length ? (
-              <div className="alamaar-conversation__freeform-log" aria-label="الرسائل الحرة الأخيرة">
-                {freeformTurns.slice(-4).map((turn) => (
-                  <div key={turn.id} className={`is-${turn.role}`}>
-                    <span>{turn.role === 'user' ? 'أنت' : 'المساعد'}</span>
-                    <p>{turn.text}</p>
-                  </div>
-                ))}
-                {chatStatus === 'thinking' ? (
-                  <div className="is-assistant is-thinking"><span>المساعد</span><p><i /><i /><i /></p></div>
-                ) : null}
+            {unresolvedFreeformTurns.slice(-6).map((turn) => (
+              <div className={`alamaar-chat__row alamaar-chat__row--${turn.role}`} key={turn.id}>
+                {turn.role === 'assistant' ? <div className="alamaar-chat__avatar alamaar-chat__avatar--ghost" aria-hidden="true">A</div> : null}
+                <div className={`alamaar-chat__bubble alamaar-chat__bubble--${turn.role}`}>
+                  <span>{turn.text}</span>
+                </div>
+              </div>
+            ))}
+
+            {chatStatus === 'thinking' ? (
+              <div className="alamaar-chat__row alamaar-chat__row--assistant">
+                <div className="alamaar-chat__avatar alamaar-chat__avatar--ghost" aria-hidden="true">A</div>
+                <div className="alamaar-chat__bubble alamaar-chat__bubble--assistant alamaar-chat__bubble--typing" aria-label="المساعد يفكر">
+                  <i /><i /><i />
+                </div>
               </div>
             ) : null}
 
             {!isResults && currentStep ? (
-              <div className="alamaar-conversation__active-turn" key={currentStep.key}>
-                <div className="alamaar-conversation__assistant-turn">
-                  <div className="alamaar-conversation__assistant-meta">
-                    <span>{guide.eyebrow}</span>
-                    <i aria-hidden="true" />
+              <div className="alamaar-chat__active" key={currentStep.key}>
+                <div className="alamaar-chat__row alamaar-chat__row--assistant alamaar-chat__row--live">
+                  <div className="alamaar-chat__live-mascot" aria-hidden="true">
+                    <MascotStage
+                      state={characterState}
+                      stepIndex={stepIndex}
+                      lookX={look.x}
+                      lookY={look.y}
+                      talking={false}
+                      engaged
+                      riveSrc={riveSrc}
+                    />
                   </div>
-                  <p>{guide.text}</p>
-                  {guide.emphasis ? <small>{guide.emphasis}</small> : null}
+                  <div className="alamaar-chat__bubble alamaar-chat__bubble--assistant alamaar-chat__bubble--question">
+                    <div className="alamaar-chat__assistant-meta"><span>{guide.eyebrow}</span><i /></div>
+                    <p>{guide.text}</p>
+                    <h1>{currentStep.title}</h1>
+                    <span>{currentStep.subtitle}</span>
+                    {guide.emphasis ? <small>{guide.emphasis}</small> : null}
+                  </div>
                 </div>
 
-                <div className="alamaar-conversation__question">
-                  <span>{currentStep.eyebrow}</span>
-                  <h1>{currentStep.title}</h1>
-                  <p>{currentStep.subtitle}</p>
-                </div>
-
-                <div className={`alamaar-conversation__choices choices-${currentStep.choices.length}`}>
-                  {currentStep.choices.map((choice) => {
-                    const value = choiceValue(choice);
-                    const selected = selectedValue === value;
-                    return (
-                      <button
-                        key={choice.value}
-                        type="button"
-                        className={selected ? 'is-selected' : ''}
-                        onClick={() => selectChoice(choice)}
-                        aria-pressed={selected}
-                        data-choice-tone={choice.tone ?? ''}
-                      >
-                        <span className="alamaar-conversation__choice-icon">{choice.icon}</span>
-                        <span><strong>{choice.label}</strong><small>{choice.hint}</small></span>
-                        <b>{selected ? '✓' : '›'}</b>
-                      </button>
-                    );
-                  })}
-                </div>
-
-                <div className="alamaar-conversation__turn-footer">
-                  <button type="button" onClick={back} disabled={stepIndex === 0}>رجوع</button>
-                  <span>{selectedValue ? 'تمام — مكمل لوحدي…' : 'اختيار واحد يكفّي عشان نكمل.'}</span>
-                  {canRevealEarly ? <button type="button" onClick={revealEarly}>ورّيني ترشيحات دلوقتي</button> : <i />}
-                </div>
+                {selectedValue ? (
+                  <div className="alamaar-chat__row alamaar-chat__row--user alamaar-chat__row--pending">
+                    <div className="alamaar-chat__bubble alamaar-chat__bubble--user">
+                      <span>{answerLabel(currentStep.key, selectedValue)}</span>
+                      <small>تم الاختيار · ✓</small>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="alamaar-chat__reply-zone">
+                    <span className="alamaar-chat__reply-label">اختار ردك</span>
+                    <div className={`alamaar-chat__quick-replies replies-${currentStep.choices.length}`}>
+                      {currentStep.choices.map((choice) => (
+                        <button
+                          key={choice.value}
+                          type="button"
+                          onClick={() => selectChoice(choice)}
+                          onFocus={() => setLook({ x: -62, y: 12 })}
+                          data-choice-tone={choice.tone ?? ''}
+                        >
+                          <span className="alamaar-chat__quick-icon">{choice.icon}</span>
+                          <span><strong>{choice.label}</strong><small>{choice.hint}</small></span>
+                        </button>
+                      ))}
+                    </div>
+                    <div className="alamaar-chat__reply-actions">
+                      <button type="button" onClick={back} disabled={stepIndex === 0}>رجوع</button>
+                      {canRevealEarly ? <button type="button" onClick={revealEarly}>ورّيني الترشيحات دلوقتي</button> : <span>أو اكتب إجابة مختلفة تحت</span>}
+                    </div>
+                  </div>
+                )}
               </div>
             ) : (
-              <div className="alamaar-results alamaar-conversation__results" key="results">
-                <div className="alamaar-results__intro">
-                  <div className="alamaar-wizard__heading">
-                    <span>CURATED SHORTLIST</span>
-                    <h1>وصلنا لثلاث خامات تستحق تبدأ منها</h1>
-                    <p>الترتيب مبني على اختياراتك البصرية والبيانات العامة المتاحة. المواصفات الفنية والملاءمة النهائية لازم تتراجع من المصدر.</p>
+              <div className="alamaar-chat__results-block" key="results">
+                <div className="alamaar-chat__row alamaar-chat__row--assistant alamaar-chat__row--live alamaar-chat__row--results">
+                  <div className="alamaar-chat__live-mascot" aria-hidden="true">
+                    <MascotStage
+                      state={characterState}
+                      stepIndex={stepIndex}
+                      lookX={look.x}
+                      lookY={look.y}
+                      talking={false}
+                      engaged
+                      riveSrc={riveSrc}
+                    />
                   </div>
+                  <div className="alamaar-chat__bubble alamaar-chat__bubble--assistant alamaar-chat__bubble--question">
+                    <div className="alamaar-chat__assistant-meta"><span>{guide.eyebrow}</span><i /></div>
+                    <p>{guide.text}</p>
+                    <h1>وصلنا لثلاث خامات تستحق تبدأ منها</h1>
+                    <span>الترتيب بصري، والمواصفات الفنية لازم تتراجع من المصدر قبل الاعتماد.</span>
+                  </div>
+                </div>
+
+                <div className="alamaar-results alamaar-conversation__results">
                   <div className="alamaar-results__summary" aria-label="ملخص اختياراتك">
                     {STEPS.map((step) => {
                       const label = answerLabel(step.key, answers[step.key]);
-                      return label ? <span key={step.key}><small>{step.eyebrow}</small>{label}</span> : null;
+                      return label ? <button type="button" key={step.key} onClick={() => goToStep(STEPS.indexOf(step))}><small>{step.eyebrow}</small>{label}</button> : null;
                     })}
                   </div>
-                </div>
 
-                <div className="alamaar-results__grid">
-                  {recommendations.map((product, index) => (
-                    <ResultCard
-                      key={product.id}
-                      product={product}
-                      index={index}
-                      answers={answers}
-                      saved={savedIds.includes(product.id)}
-                      compared={compareIds.includes(product.id)}
-                      onSave={() => toggleSaved(product.id)}
-                      onCompare={() => toggleCompare(product.id)}
-                    />
-                  ))}
-                </div>
+                  <div className="alamaar-results__grid">
+                    {recommendations.map((product, index) => (
+                      <ResultCard
+                        key={product.id}
+                        product={product}
+                        index={index}
+                        answers={answers}
+                        saved={savedIds.includes(product.id)}
+                        compared={compareIds.includes(product.id)}
+                        onSave={() => toggleSaved(product.id)}
+                        onCompare={() => toggleCompare(product.id)}
+                      />
+                    ))}
+                  </div>
 
-                <ComparePanel products={comparedProducts} onClear={() => setCompareIds([])} />
+                  <ComparePanel products={comparedProducts} onClear={() => setCompareIds([])} />
 
-                <div className="alamaar-results__actions">
-                  <a className="alamaar-button alamaar-button--primary" href="https://alamaarhpl.com/contact/" target="_blank" rel="noreferrer">اطلب عينة</a>
-                  <a className="alamaar-button alamaar-button--secondary" href="https://wa.me/201008897060" target="_blank" rel="noreferrer">اسأل مهندس على واتساب</a>
-                  <button type="button" className="alamaar-button alamaar-button--ghost" onClick={() => goToStep(Math.max(0, STEPS.length - 1))}>عدّل الاختيارات</button>
-                  <button type="button" className="alamaar-text-action" onClick={restart}>ابدأ من جديد</button>
+                  <div className="alamaar-results__actions">
+                    <a className="alamaar-button alamaar-button--primary" href="https://alamaarhpl.com/contact/" target="_blank" rel="noreferrer">اطلب عينة</a>
+                    <a className="alamaar-button alamaar-button--secondary" href="https://wa.me/201008897060" target="_blank" rel="noreferrer">اسأل مهندس على واتساب</a>
+                    <button type="button" className="alamaar-button alamaar-button--ghost" onClick={() => goToStep(Math.max(0, STEPS.length - 1))}>عدّل آخر اختيار</button>
+                    <button type="button" className="alamaar-text-action" onClick={restart}>ابدأ من جديد</button>
+                  </div>
                 </div>
               </div>
             )}
-
-            <form className={`alamaar-conversation__composer ${composerFocused ? 'is-focused' : ''}`} onSubmit={submitFreeform}>
-              <div className="alamaar-conversation__composer-copy">
-                <span>مش لاقي إجابتك؟</span>
-                <small>اكتب إجابة مختلفة أو اسأل أي سؤال — الـ AI bridge جاهز للربط.</small>
-              </div>
-              <div className="alamaar-conversation__composer-input">
-                <textarea
-                  value={composer}
-                  onChange={(event) => setComposer(event.target.value)}
-                  onFocus={() => setComposerFocused(true)}
-                  onBlur={() => setComposerFocused(false)}
-                  placeholder={isResults ? 'اسأل عن خامة أو اكتب احتياج مختلف…' : 'مثلاً: أنا بعمل ريسبشن عيادة… أو عندي سؤال مختلف'}
-                  rows={1}
-                  aria-label="اكتب إجابة أو سؤال مختلف"
-                />
-                <button type="submit" disabled={!composer.trim() || chatStatus === 'thinking'} aria-label="إرسال">↑</button>
-              </div>
-              <div className="alamaar-conversation__composer-status">
-                <span><i /> الكتابة الحرة لا تغيّر المسار إلا لو فهمناها بثقة</span>
-                <b>{chatStatus === 'thinking' ? 'READING' : 'HYBRID FLOW'}</b>
-              </div>
-            </form>
           </div>
+
+          <form className={`alamaar-chat__composer ${composerFocused ? 'is-focused' : ''}`} onSubmit={submitFreeform}>
+            <div className="alamaar-chat__composer-inner">
+              <textarea
+                value={composer}
+                onChange={(event) => setComposer(event.target.value)}
+                onFocus={() => {
+                  setComposerFocused(true);
+                  setLook({ x: -45, y: 45 });
+                }}
+                onBlur={() => setComposerFocused(false)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' && !event.shiftKey) {
+                    event.preventDefault();
+                    event.currentTarget.form?.requestSubmit();
+                  }
+                }}
+                placeholder={isResults ? 'اسأل عن خامة أو اكتب احتياج مختلف…' : 'اكتب إجابة مختلفة أو اسألني أي سؤال…'}
+                rows={1}
+                aria-label="اكتب إجابة أو سؤال مختلف"
+              />
+              <button type="submit" disabled={!composer.trim() || chatStatus === 'thinking'} aria-label="إرسال">↑</button>
+            </div>
+            <div className="alamaar-chat__composer-meta">
+              <span><i /> الاختيارات الجاهزة تكمل فورًا · الكتابة الحرة جاهزة للـ AI</span>
+              <b>{chatStatus === 'thinking' ? 'READING' : 'HYBRID CHAT'}</b>
+            </div>
+          </form>
         </section>
 
         <div className="alamaar-demo__source" title="النسخة تحاول استخدام WooCommerce Store API العام أولاً ثم تستخدم fallback عام عند الحاجة.">
           <span className={catalogSource === 'live' ? 'is-live' : ''} />
           {catalogSource === 'live' ? 'الكتالوج العام متصل' : 'وضع fallback للكتالوج العام'}
-          {riveSrc ? <b>· Rive source connected</b> : <b>· seated motion rig</b>}
+          {riveSrc ? <b>· Rive source connected</b> : <b>· chat motion rig</b>}
         </div>
       </main>
     </div>
