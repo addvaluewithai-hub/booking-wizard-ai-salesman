@@ -1,0 +1,31 @@
+.alamaar-character-stage__procedural,
+.alamaar-rive-layer {
+  position: absolute;
+  inset: 0;
+}
+
+.alamaar-character-stage__procedural {
+  z-index: 1;
+  opacity: 1;
+  transform: translateZ(0);
+  transition: opacity .28s ease, filter .28s ease;
+}
+
+.alamaar-rive-layer {
+  z-index: 2;
+}
+
+.alamaar-character-stage.is-rive-ready .alamaar-character-stage__procedural {
+  opacity: 0;
+  filter: blur(2px);
+}
+
+.alamaar-character-stage__engine {
+  z-index: 4;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .alamaar-character-stage__procedural {
+    transition: none;
+  }
+}

@@ -39,7 +39,8 @@ jobs:
         env:
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
-          slug=$(printf '%s' "$GITHUB_HEAD_REF" | tr '[:upper:]' '[:lower:]' | sed -E 's#[^a-z0-9]+#-#g; s#^-+|-+$##g')
+          # Cloudflare Pages truncates branch aliases to 28 characters.
+          slug=$(printf '%s' "$GITHUB_HEAD_REF" | tr '[:upper:]' '[:lower:]' | sed -E 's#[^a-z0-9]+#-#g; s#^-+|-+$##g' | cut -c1-28 | sed -E 's#-+$##g')
           export PREVIEW_BASE_URL="https://${slug}.booking-wizard-ai-salesman.pages.dev"
           export EXPECTED_COMMIT="$PR_HEAD_SHA"
           echo "Testing ${PREVIEW_BASE_URL} at PR head ${EXPECTED_COMMIT}"

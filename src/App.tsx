@@ -2,6 +2,7 @@ import { lazy, Suspense } from 'react';
 import HomePage from './homepage/HomePage';
 
 const DesignSystemPlayground = lazy(() => import('./playground/DesignSystemPlayground'));
+const AlamaarWizardPage = lazy(() => import('./niches/alamaar/AlamaarWizardPage'));
 const HplPage = lazy(() => import('./niches/hpl/HplPage'));
 const YachtPage = lazy(() => import('./niches/yachts/YachtPage'));
 const LawFirmPage = lazy(() => import('./niches/law-firms/LawFirmPage'));
@@ -33,6 +34,10 @@ export default function App() {
         <div className="app-shell"><ProductHeader /><DesignSystemPlayground /></div>
       </Suspense>
     );
+  }
+
+  if (pathname.startsWith('/alamaar')) {
+    return <Suspense fallback={<RouteLoading />}><AlamaarWizardPage /></Suspense>;
   }
 
   if (pathname.startsWith('/hpl')) {

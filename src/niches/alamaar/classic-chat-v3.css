@@ -1,0 +1,171 @@
+.alamaar-chat-shell--v3 .alamaar-chat__exchange--compact {
+  margin-bottom: 9px;
+  opacity: .5;
+}
+
+.alamaar-chat__avatar--quiet {
+  display: grid;
+  place-items: center;
+  background: rgba(191, 164, 126, .18) !important;
+  border: 1px solid rgba(173, 145, 106, .18);
+  color: transparent !important;
+  box-shadow: none !important;
+}
+
+.alamaar-chat__avatar--quiet i {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: #b98a4d;
+  opacity: .58;
+}
+
+.alamaar-chat__active--v3 {
+  display: grid;
+  gap: 9px;
+}
+
+.alamaar-chat__turn-stack {
+  display: grid;
+  gap: 5px;
+}
+
+.alamaar-chat__row--ai-active {
+  animation: alamaar-ai-reply-in .4s cubic-bezier(.18,.78,.25,1) both;
+}
+
+.alamaar-chat__row--ai-active .alamaar-chat__bubble--assistant {
+  max-width: min(560px, calc(100% - 92px));
+}
+
+.alamaar-chat__ai-surface {
+  width: min(620px, calc(100% - 92px));
+  margin-inline-start: 92px;
+  animation: alamaar-ai-surface-in .42s .08s cubic-bezier(.18,.78,.25,1) both;
+}
+
+.alamaar-chat__ai-surface .alamaar-engine-ui {
+  margin-top: 0;
+}
+
+.alamaar-chat__ai-surface .alamaar-engine-ui__choices {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.alamaar-chat__ai-surface .alamaar-engine-ui__choices button {
+  min-height: 46px;
+  border-radius: 14px;
+  font-size: 10px;
+  text-align: right;
+  justify-content: flex-start;
+}
+
+.alamaar-chat__reply-zone--resume {
+  margin-top: 2px;
+  animation: alamaar-resume-in .38s .06s cubic-bezier(.18,.78,.25,1) both;
+}
+
+.alamaar-chat-shell--v3 .alamaar-chat__bubble--assistant > span,
+.alamaar-chat-shell--v3 .alamaar-chat__bubble--user > span {
+  line-height: 1.65;
+}
+
+.alamaar-chat-shell--v3 .alamaar-chat__row--history .alamaar-chat__avatar {
+  width: 26px;
+  height: 26px;
+}
+
+.alamaar-chat-shell--v3 .alamaar-chat__row--history .alamaar-chat__bubble {
+  padding: 6px 9px;
+}
+
+.alamaar-chat-shell--v3 .alamaar-chat__row--history .alamaar-chat__bubble strong {
+  font-size: 8px;
+}
+
+.alamaar-chat__advisor-lead {
+  margin: 2px 0 7px;
+  max-width: 46ch;
+  color: #6f5b45;
+  font-size: 11px;
+  line-height: 1.65;
+  font-weight: 650;
+  animation: alamaar-advisor-lead-in .46s cubic-bezier(.18,.78,.25,1) both;
+}
+
+.alamaar-chat__advisor-lead::before {
+  content: '✦';
+  display: inline-block;
+  margin-inline-end: 6px;
+  color: #b68446;
+  font-size: 8px;
+  transform: translateY(-1px);
+}
+
+.alamaar-chat__compare-note {
+  margin: 10px 0;
+  padding: 9px 11px;
+  border: 1px solid rgba(175, 145, 102, .22);
+  border-radius: 12px;
+  background: rgba(255,255,255,.62);
+  color: #716355;
+  font-size: 8px;
+  font-weight: 700;
+}
+
+@keyframes alamaar-ai-reply-in {
+  from { opacity: 0; transform: translateY(9px); filter: blur(3px); }
+  to { opacity: 1; transform: translateY(0); filter: blur(0); }
+}
+
+@keyframes alamaar-ai-surface-in {
+  from { opacity: 0; transform: translateY(7px) scale(.995); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes alamaar-resume-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes alamaar-advisor-lead-in {
+  from { opacity: 0; transform: translateY(5px); filter: blur(2px); }
+  to { opacity: .96; transform: translateY(0); filter: blur(0); }
+}
+
+@media (max-width: 560px) {
+  .alamaar-chat__ai-surface {
+    width: calc(100% - 76px);
+    margin-inline-start: 76px;
+  }
+
+  .alamaar-chat__row--ai-active .alamaar-chat__bubble--assistant {
+    max-width: calc(100% - 76px);
+  }
+
+  .alamaar-chat__ai-surface .alamaar-engine-ui__choices {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .alamaar-chat__ai-surface .alamaar-engine-ui__choices button {
+    min-height: 43px;
+    padding: 7px 9px;
+    font-size: 9px;
+  }
+
+  .alamaar-chat__advisor-lead {
+    font-size: 10px;
+    max-width: 38ch;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .alamaar-chat__row--ai-active,
+  .alamaar-chat__ai-surface,
+  .alamaar-chat__reply-zone--resume,
+  .alamaar-chat__advisor-lead {
+    animation: none !important;
+  }
+}

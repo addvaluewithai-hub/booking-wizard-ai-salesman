@@ -1,0 +1,122 @@
+.alamaar-engine-ui {
+  display: grid;
+  gap: 9px;
+  margin-top: 8px;
+}
+
+.alamaar-engine-ui__choices,
+.alamaar-engine-ui__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.alamaar-engine-ui__choices button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 38px;
+  border: 1px solid #d9d1c7;
+  border-radius: 12px;
+  background: rgba(255,255,255,.94);
+  color: #332e29;
+  padding: 7px 10px;
+  font: 800 9px/1.2 Tahoma, Arial, sans-serif;
+  cursor: pointer;
+  box-shadow: 0 5px 13px rgba(61,47,32,.05);
+}
+
+.alamaar-engine-ui__choices button[data-choice-tone='dark'] {
+  background: #211f1c;
+  border-color: #37332f;
+  color: #fff;
+}
+
+.alamaar-engine-ui__products {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.alamaar-engine-ui__products > a {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid #ddd5ca;
+  border-radius: 14px;
+  background: #fff;
+  color: #302b26;
+  text-decoration: none;
+  box-shadow: 0 7px 17px rgba(63,49,34,.06);
+}
+
+.alamaar-engine-ui__products img {
+  width: 100%;
+  aspect-ratio: 1.45;
+  display: block;
+  object-fit: cover;
+}
+
+.alamaar-engine-ui__products span {
+  display: block;
+  padding: 8px 9px 5px;
+}
+
+.alamaar-engine-ui__products strong,
+.alamaar-engine-ui__products small {
+  display: block;
+}
+
+.alamaar-engine-ui__products strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 9px;
+}
+
+.alamaar-engine-ui__products small {
+  margin-top: 2px;
+  color: #887e73;
+  font: 700 7px/1.2 Arial, sans-serif;
+}
+
+.alamaar-engine-ui__products b {
+  display: inline-block;
+  margin: 0 9px 8px;
+  border-radius: 999px;
+  background: #f1e7d7;
+  color: #8d622a;
+  padding: 4px 6px;
+  font-size: 6px;
+}
+
+.alamaar-engine-ui__actions a {
+  border-radius: 999px;
+  background: #2b2824;
+  color: #fff;
+  padding: 8px 12px;
+  text-decoration: none;
+  font-size: 8px;
+  font-weight: 800;
+}
+
+@media (max-width: 560px) {
+  .alamaar-engine-ui__products {
+    grid-template-columns: 1fr;
+  }
+
+  .alamaar-engine-ui__products > a {
+    display: grid;
+    grid-template-columns: 74px 1fr;
+    align-items: center;
+  }
+
+  .alamaar-engine-ui__products img {
+    width: 74px;
+    height: 64px;
+    aspect-ratio: auto;
+  }
+
+  .alamaar-engine-ui__products b {
+    display: none;
+  }
+}
