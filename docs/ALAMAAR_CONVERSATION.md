@@ -8,57 +8,95 @@ The `/alamaar` experience is a guided visual chat. Known choices stay determinis
 - Exact typed equivalents of known choices are resolved locally by `chatBridge.ts`.
 - Only ambiguous/freeform messages call `/api/alamaar-chat`.
 - The live mascot communicates with micro-expression states while the model is thinking.
-- The client keeps ownership of navigation, rendering and product URLs.
+- The application owns navigation, product selection, rendering, links and component choice.
 
-## Core AI rule: model chooses data, never components
+## Core architecture
 
-The model is not allowed to emit JSX, HTML, CSS, URLs or arbitrary component names. It can only return JSON for a small application-owned component registry.
+The system follows one rule:
 
-The registry currently contains four renderers:
+> AI understands. Engine decides. UI renders.
 
-```ts
-type AiUiBlock =
-  | { type: 'flow_choices'; data: { stepKey: AnswerKey; optionIds: string[] } }
-  | { type: 'suggestions'; data: { items: Array<{ id: string; label: string; value: string }> } }
-  | { type: 'products'; data: { productIds: string[] } }
-  | { type: 'actions'; data: { actionIds: Array<'sample' | 'whatsapp' | 'shop'> } };
+Gemini is a language interpreter, not a UI planner. It never emits JSX, HTML, CSS, URLs, component names, product IDs or route indexes.
+
+Both button clicks and free text ultimately become domain meaning. A button already knows its meaning; free text needs Gemini to translate it.
+
+```text
+known button ───────────────┐
+                            ├─> domain meaning -> conversation engine -> view effects -> React
+free text -> Gemini events ─┘
 ```
 
-`AiUiRenderer.tsx` owns the real React components. The AI only fills their data.
+This keeps one brain for the flow: `conversationEngine.ts`.
 
-### Why this matters
+## Semantic AI contract
 
-- `flow_choices` can only reference values already present in `STEPS`.
-- `products` can only reference product IDs from the catalog snapshot supplied with the request; the renderer resolves the real image, code and URL locally.
-- `actions` can only use fixed application-owned action IDs, so the model cannot invent links.
-- `suggestions` are short custom clarification chips. Clicking one sends its value back through the same freeform path rather than mutating flow state directly.
-
-Both the server endpoint and the browser normalize/validate model output. Invalid blocks or invented IDs are dropped.
-
-## Structured response
-
-The validated model response is:
+The server returns a short reply plus semantic events only:
 
 ```ts
-type AiConversationResponse = {
-  intent: 'answer' | 'question' | 'clarify' | 'recommend';
+type AiSemanticEvent =
+  | { type: 'answer'; field: AnswerKey; value: string }
+  | { type: 'clarify_current_question'; candidates: Array<{ field: AnswerKey; value: string }> }
+  | { type: 'ask_question'; topic: 'general' | 'product' | 'technical' }
+  | { type: 'product_request'; criteria: { tone?: Tone; family?: Family; style?: string } }
+  | { type: 'request_sample' }
+  | { type: 'contact_human'; reason?: string }
+  | { type: 'unknown' };
+
+type AiInterpreterResponse = {
   reply: string;
-  updates: Array<{
-    key: 'project' | 'style' | 'tone' | 'application';
-    value: string;
-    label: string;
-  }>;
-  ui: AiUiBlock[];
+  events: AiSemanticEvent[];
 };
 ```
 
-The server asks the model for `key + value`; the browser rebuilds the canonical visible label from `STEPS`. The model does not control labels for structured answers.
+The model can emit multiple `answer` events when one message clearly contains several guided answers. It cannot choose the next question. After validated answers are merged, the engine computes the first unanswered guided step.
 
-When one or more validated updates arrive, the client merges them and computes the first unanswered guided step itself. The model does not get direct control over routing indexes.
+## Interrupt / resume
 
-## Product grounding
+A message such as `يعني إيه؟` is an interruption inside the current step, not a new funnel node.
 
-The AI receives only a compact catalog snapshot: `id`, `name`, `code`, `family`, and `tone`. It may choose IDs to render, but it may not invent product fields or technical performance claims. Questions about unsupported durability, fire/water resistance, dimensions, stock or certifications should stay explicitly unverified and can surface a fixed WhatsApp/sample/shop action instead.
+Gemini returns `clarify_current_question`; the engine keeps the same step active. The normal guided choices remain on screen after the explanation. If Gemini supplies a genuine 2-4 value ambiguity for the current field, the engine may convert those semantic candidates into a narrowed guided reply surface. Gemini still never names the component.
+
+## Product requests
+
+For a request such as `وريني حاجة خشبي داكن` Gemini returns criteria only:
+
+```json
+{
+  "type": "product_request",
+  "criteria": { "tone": "dark", "family": "wood" }
+}
+```
+
+The browser-side conversation engine filters/ranks the real catalog deterministically and emits a `product_results` view effect containing real IDs. React then resolves those IDs to the trusted product records and renders the cards.
+
+Gemini never sees or chooses product IDs in this path.
+
+## Engine-owned view effects
+
+Only the application can create these effects:
+
+```ts
+type ConversationEffect =
+  | { type: 'guided_candidates'; stepKey: AnswerKey; optionIds: string[] }
+  | { type: 'product_results'; productIds: string[] }
+  | { type: 'actions'; actionIds: Array<'sample' | 'whatsapp' | 'shop'> };
+```
+
+`ConversationEffectRenderer.tsx` renders those effects. This is deliberately downstream of the deterministic engine, not downstream of raw model output.
+
+Examples:
+
+- `clarify_current_question` may become `guided_candidates` only when the candidates are a validated strict subset of the active step.
+- `product_request` becomes `product_results` only after deterministic catalog selection.
+- `request_sample` becomes the fixed `sample` action.
+- `contact_human` becomes the fixed WhatsApp action.
+- technical side questions also surface the fixed WhatsApp action because current catalog metadata is not enough to verify technical performance.
+
+## Grounding
+
+The interpreter is explicitly blocked from inventing price, stock, durability, fire/water resistance, certifications, dimensions, availability or unsupported technical performance.
+
+The AI request no longer includes the catalog because the model does not need product records to interpret user intent. Product selection happens after interpretation inside application code.
 
 ## Server boundary
 
