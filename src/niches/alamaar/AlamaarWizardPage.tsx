@@ -214,7 +214,9 @@ export default function AlamaarWizardPage() {
     .map((step, index) => ({ step, index, label: answerLabel(step.key, answers[step.key]) }))
     .filter((item) => Boolean(item.label) && (isResults || item.index < stepIndex));
 
-  const unresolvedFreeformTurns = freeformTurns.filter((turn) => !turn.resolvedAnswer);
+  const unresolvedFreeformTurns = freeformTurns.filter(
+    (turn) => !turn.resolvedAnswer || turn.stepIndex === stepIndex,
+  );
 
   useEffect(() => {
     window.requestAnimationFrame(() => {
@@ -257,13 +259,19 @@ export default function AlamaarWizardPage() {
     if (index < 0 || index >= STEPS.length) return;
     clearAdvance();
     setReaction('idle');
+    setChatStatus('idle');
+    setAnswers((current) => {
+      const next = { ...current };
+      STEPS.slice(index).forEach((step) => delete next[step.key]);
+      return next;
+    });
+    setFreeformTurns((current) => current.filter((turn) => turn.stepIndex === undefined || turn.stepIndex < index));
     setStepIndex(index);
   };
 
   const back = () => {
-    clearAdvance();
-    setReaction('idle');
-    setStepIndex((current) => Math.max(0, current - 1));
+    if (stepIndex === 0) return;
+    goToStep(Math.max(0, Math.min(stepIndex - 1, STEPS.length - 1)));
   };
 
   const revealEarly = () => {
@@ -405,9 +413,10 @@ export default function AlamaarWizardPage() {
             </div>
 
             {completedSteps.map(({ step, index, label }) => {
-              const typedAnswer = freeformTurns
-                .filter((turn) => turn.role === 'user' && turn.stepIndex === index && turn.resolvedAnswer)
-                .at(-1);
+              const typedAnswers = freeformTurns.filter(
+                (turn) => turn.role === 'user' && turn.stepIndex === index && turn.resolvedAnswer,
+              );
+              const typedAnswer = typedAnswers[typedAnswers.length - 1];
               return (
                 <div className="alamaar-chat__exchange" key={step.key}>
                   <AssistantHistoryBubble title={step.title} subtitle={step.subtitle} />
@@ -517,9 +526,9 @@ export default function AlamaarWizardPage() {
 
                 <div className="alamaar-results alamaar-conversation__results">
                   <div className="alamaar-results__summary" aria-label="ملخص اختياراتك">
-                    {STEPS.map((step) => {
+                    {STEPS.map((step, index) => {
                       const label = answerLabel(step.key, answers[step.key]);
-                      return label ? <button type="button" key={step.key} onClick={() => goToStep(STEPS.indexOf(step))}><small>{step.eyebrow}</small>{label}</button> : null;
+                      return label ? <button type="button" key={step.key} onClick={() => goToStep(index)}><small>{step.eyebrow}</small>{label}</button> : null;
                     })}
                   </div>
 
