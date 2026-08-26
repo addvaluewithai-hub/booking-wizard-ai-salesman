@@ -121,12 +121,20 @@ function sanitizeUiBlock(raw: unknown, catalogIds: Set<string>): AiUiBlock | nul
   return null;
 }
 
-export function normalizeAiConversationResponse(value: unknown, catalog: AlamaarProduct[]): AiConversationResponse | null {
+function isRedundantCurrentFlow(block: AiUiBlock, stepIndex?: number) {
+  if (block.type !== 'flow_choices' || stepIndex === undefined) return false;
+  const step = STEPS[stepIndex];
+  if (!step || block.data.stepKey !== step.key) return false;
+  const canonical = step.choices.map(choiceValue);
+  return block.data.optionIds.length === canonical.length && canonical.every((value) => block.data.optionIds.includes(value));
+}
+
+export function normalizeAiConversationResponse(value: unknown, catalog: AlamaarProduct[], stepIndex?: number): AiConversationResponse | null {
   if (!isObject(value)) return null;
   const intent = typeof value.intent === 'string' && INTENTS.has(value.intent as AiConversationResponse['intent'])
     ? value.intent as AiConversationResponse['intent']
     : null;
-  const reply = cleanText(value.reply, 280);
+  const reply = cleanText(value.reply, 190);
   if (!intent || !reply) return null;
 
   const updates = Array.isArray(value.updates)
@@ -138,10 +146,17 @@ export function normalizeAiConversationResponse(value: unknown, catalog: Alamaar
     : [];
 
   const catalogIds = new Set(catalog.map((product) => product.id));
+  const seenTypes = new Set<string>();
   const ui = Array.isArray(value.ui)
     ? value.ui
         .map((block) => sanitizeUiBlock(block, catalogIds))
         .filter((block): block is AiUiBlock => Boolean(block))
+        .filter((block) => !isRedundantCurrentFlow(block, stepIndex))
+        .filter((block) => {
+          if (seenTypes.has(block.type)) return false;
+          seenTypes.add(block.type);
+          return true;
+        })
         .slice(0, 3)
     : [];
 
