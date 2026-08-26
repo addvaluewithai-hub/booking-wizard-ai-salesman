@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { MascotState } from './experience';
 import './mascot.css';
+import './mascot-micro.css';
 
 type ProceduralMascotProps = {
   state: MascotState;
@@ -11,6 +12,8 @@ type ProceduralMascotProps = {
   stepIndex: number;
 };
 
+type Drift = { x: number; y: number };
+
 function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, value));
 }
@@ -19,11 +22,12 @@ export default function ProceduralMascot({
   state,
   lookX,
   lookY,
-  talking,
   engaged,
   stepIndex,
 }: ProceduralMascotProps) {
   const [blink, setBlink] = useState(false);
+  const [microBlink, setMicroBlink] = useState(false);
+  const [idleDrift, setIdleDrift] = useState<Drift>({ x: 0, y: 0 });
 
   useEffect(() => {
     let blinkTimer = 0;
@@ -31,7 +35,7 @@ export default function ProceduralMascot({
     let cancelled = false;
 
     const scheduleBlink = () => {
-      const delay = 2200 + Math.round(Math.random() * 3600);
+      const delay = 2800 + Math.round(Math.random() * 4200);
       blinkTimer = window.setTimeout(() => {
         if (cancelled) return;
         setBlink(true);
@@ -39,7 +43,7 @@ export default function ProceduralMascot({
           if (cancelled) return;
           setBlink(false);
           scheduleBlink();
-        }, 115);
+        }, 105);
       }, delay);
     };
 
@@ -51,17 +55,67 @@ export default function ProceduralMascot({
     };
   }, []);
 
-  const pupilX = clamp(lookX * 0.065, -6.5, 6.5);
-  const pupilY = clamp(lookY * 0.045, -4.5, 4.5);
-  const faceX = clamp(lookX * 0.018, -2.2, 2.2);
-  const faceY = clamp(lookY * 0.012, -1.6, 1.6);
-  const headTilt = clamp(lookX * 0.015, -1.6, 1.6);
+  useEffect(() => {
+    if (!engaged) {
+      setIdleDrift({ x: 0, y: 0 });
+      return;
+    }
+
+    let driftTimer = 0;
+    let settleTimer = 0;
+    let cancelled = false;
+
+    const scheduleDrift = () => {
+      driftTimer = window.setTimeout(() => {
+        if (cancelled) return;
+        const scale = state === 'listen' || state === 'think' ? 0.55 : 1;
+        setIdleDrift({
+          x: (Math.random() * 2 - 1) * 1.15 * scale,
+          y: (Math.random() * 2 - 1) * 0.72 * scale,
+        });
+        settleTimer = window.setTimeout(() => {
+          if (cancelled) return;
+          setIdleDrift({ x: 0, y: 0 });
+          scheduleDrift();
+        }, 180 + Math.round(Math.random() * 220));
+      }, 1750 + Math.round(Math.random() * 2600));
+    };
+
+    scheduleDrift();
+    return () => {
+      cancelled = true;
+      window.clearTimeout(driftTimer);
+      window.clearTimeout(settleTimer);
+    };
+  }, [engaged, state]);
+
+  useEffect(() => {
+    if (state !== 'approve') return;
+
+    const timers = [
+      window.setTimeout(() => setMicroBlink(true), 55),
+      window.setTimeout(() => setMicroBlink(false), 125),
+      window.setTimeout(() => setMicroBlink(true), 205),
+      window.setTimeout(() => setMicroBlink(false), 275),
+    ];
+
+    return () => timers.forEach((timer) => window.clearTimeout(timer));
+  }, [state]);
+
+  const pointerWeight = Math.abs(lookX) + Math.abs(lookY);
+  const isAttending = pointerWeight > 30;
+  const pupilX = clamp(lookX * 0.058 + idleDrift.x, -6.2, 6.2);
+  const pupilY = clamp(lookY * 0.038 + idleDrift.y, -4.1, 4.1);
+  const faceX = clamp(lookX * 0.012, -1.45, 1.45);
+  const faceY = clamp(lookY * 0.008, -1.05, 1.05);
+  const headTilt = clamp(lookX * 0.009, -0.95, 0.95);
 
   return (
     <div
-      className={`alamaar-proc ${blink ? 'is-blinking' : ''} ${talking ? 'is-talking' : ''} ${engaged ? 'is-engaged' : ''}`}
+      className={`alamaar-proc ${blink || microBlink ? 'is-blinking' : ''} ${engaged ? 'is-engaged' : ''} ${isAttending ? 'is-attending' : ''}`}
       data-state={state}
       data-step={stepIndex}
+      data-attention={isAttending ? 'focused' : 'soft'}
       aria-hidden="true"
     >
       <svg viewBox="0 0 300 380" role="img">
@@ -149,6 +203,7 @@ export default function ProceduralMascot({
                 <ellipse cx="124" cy="147" rx="9" ry="11" fill="#221710" />
                 <circle cx="128" cy="143" r="3" fill="#fff" opacity=".9" />
               </g>
+              <path className="alamaar-proc__micro-lid" d="M97 137 Q121 116 145 137 Q121 128 97 137Z" fill="#9f6740" />
               <path className="alamaar-proc__eyelid" d="M96 143 Q121 119 146 143 Q121 155 96 143Z" fill="#a46d43" />
             </g>
 
@@ -158,18 +213,16 @@ export default function ProceduralMascot({
                 <ellipse cx="184" cy="147" rx="9" ry="11" fill="#221710" />
                 <circle cx="188" cy="143" r="3" fill="#fff" opacity=".9" />
               </g>
+              <path className="alamaar-proc__micro-lid" d="M157 137 Q181 116 205 137 Q181 128 157 137Z" fill="#9f6740" />
               <path className="alamaar-proc__eyelid" d="M156 143 Q181 119 206 143 Q181 155 156 143Z" fill="#a46d43" />
             </g>
 
-            <ellipse className="alamaar-proc__cheek alamaar-proc__cheek--left" cx="106" cy="180" rx="12" ry="5" fill="#c87968" opacity=".22" />
-            <ellipse className="alamaar-proc__cheek alamaar-proc__cheek--right" cx="197" cy="180" rx="12" ry="5" fill="#c87968" opacity=".22" />
+            <ellipse className="alamaar-proc__cheek alamaar-proc__cheek--left" cx="106" cy="180" rx="12" ry="5" fill="#c87968" opacity=".16" />
+            <ellipse className="alamaar-proc__cheek alamaar-proc__cheek--right" cx="197" cy="180" rx="12" ry="5" fill="#c87968" opacity=".16" />
 
             <g className="alamaar-proc__mouth-wrap">
-              <path className="alamaar-proc__mouth alamaar-proc__mouth--smile" d="M113 190 Q151 224 191 188 Q185 236 152 237 Q119 235 113 190" fill="#291710" stroke="#40271a" strokeWidth="4" />
-              <path className="alamaar-proc__teeth" d="M126 199 Q151 210 178 197" fill="none" stroke="#fff8e9" strokeWidth="8" strokeLinecap="round" />
-              <path className="alamaar-proc__tongue" d="M135 224 Q152 211 170 224" fill="none" stroke="#c86865" strokeWidth="7" strokeLinecap="round" />
-              <ellipse className="alamaar-proc__mouth alamaar-proc__mouth--talk" cx="152" cy="211" rx="20" ry="26" fill="#291710" stroke="#40271a" strokeWidth="4" />
-              <path className="alamaar-proc__talk-teeth" d="M137 199 Q152 205 167 198" fill="none" stroke="#fff8e9" strokeWidth="7" strokeLinecap="round" />
+              <path className="alamaar-proc__mouth-line" d="M124 201 Q151 215 180 199" fill="none" stroke="#3a2419" strokeWidth="6" strokeLinecap="round" />
+              <path className="alamaar-proc__mouth-corner" d="M177 199 Q184 198 188 193" fill="none" stroke="#3a2419" strokeWidth="4" strokeLinecap="round" />
             </g>
           </g>
 
@@ -177,8 +230,8 @@ export default function ProceduralMascot({
             <path d="M94 129 C107 120 135 119 145 129 L142 150 C130 160 105 160 96 150Z" fill="url(#ap-glass)" stroke="#21180f" strokeWidth="4" />
             <path d="M157 129 C170 120 198 119 208 129 L205 150 C193 160 168 160 159 150Z" fill="url(#ap-glass)" stroke="#21180f" strokeWidth="4" />
             <path d="M143 133 Q151 128 159 133" fill="none" stroke="#21180f" strokeWidth="6" />
-            <path d="M103 128 L133 151" stroke="rgba(255,255,255,.18)" strokeWidth="4" />
-            <path d="M166 128 L196 151" stroke="rgba(255,255,255,.18)" strokeWidth="4" />
+            <path className="alamaar-proc__glass-glint alamaar-proc__glass-glint--one" d="M103 128 L133 151" stroke="rgba(255,255,255,.18)" strokeWidth="4" />
+            <path className="alamaar-proc__glass-glint alamaar-proc__glass-glint--two" d="M166 128 L196 151" stroke="rgba(255,255,255,.18)" strokeWidth="4" />
           </g>
 
           <g className="alamaar-proc__sparkles">
