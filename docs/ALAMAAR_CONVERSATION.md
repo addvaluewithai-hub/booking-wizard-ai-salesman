@@ -50,11 +50,21 @@ type AiInterpreterResponse = {
 
 The model can emit multiple `answer` events when one message clearly contains several guided answers. It cannot choose the next question. After validated answers are merged, the engine computes the first unanswered guided step.
 
+### Corrections are engine-owned too
+
+If free text changes an earlier guided answer, the conversation engine treats later answers as dependent state. It clears stale downstream answers unless the same semantic turn explicitly supplies replacements for them.
+
+Example: if the visitor previously chose `kitchen -> modern-dark -> dark` and later says `قصدي مكتب مش مطبخ`, Gemini only emits `{ type: 'answer', field: 'project', value: 'office' }`. The engine changes the project, clears the stale later answers, and resumes at the first unanswered field. If the visitor says `مكتب ومودرن فاتح`, both explicit answer events are preserved and only later unsupplied fields are cleared.
+
+This rule prevents the model from silently leaving an internally inconsistent funnel state.
+
 ## Interrupt / resume
 
 A message such as `يعني إيه؟` is an interruption inside the current step, not a new funnel node.
 
 Gemini returns `clarify_current_question`; the engine keeps the same step active. The normal guided choices remain on screen after the explanation. If Gemini supplies a genuine 2-4 value ambiguity for the current field, the engine may convert those semantic candidates into a narrowed guided reply surface. Gemini still never names the component.
+
+A candidate set equal to the full current step is deliberately ignored: the deterministic flow already owns that surface, so recreating it would cause the duplicate-choice problem this architecture is designed to prevent.
 
 ## Product requests
 
