@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent, type PointerEvent } from 'react';
 import { ALAMAAR_FALLBACK_PRODUCTS, fetchAlamaarProducts, type AlamaarProduct } from './catalog';
 import { interpretFreeformLocally, type ConversationTurn } from './chatBridge';
+import { buildAlamaarAiRequest, requestAlamaarAiTurn } from './aiClient';
+import AiUiRenderer from './AiUiRenderer';
 import MascotStage from './MascotStage';
 import {
   STEPS,
@@ -20,7 +22,7 @@ import './conversation.css';
 import './classic-chat.css';
 import './classic-chat-v2.css';
 
-const SESSION_KEY = 'alamaar-guided-material-session-v5';
+const SESSION_KEY = 'alamaar-guided-material-session-v6';
 
 type FlowPhase = 'idle' | 'acknowledge' | 'thinking';
 
@@ -59,6 +61,11 @@ function shortLead(stepIndex: number, answers: Answers) {
   return 'دي أقرب اختيارات ليك.';
 }
 
+function firstUnansweredStep(answers: Answers) {
+  const index = STEPS.findIndex((step) => !answers[step.key]);
+  return index === -1 ? STEPS.length : index;
+}
+
 function ResultCard({
   product,
   index,
@@ -77,7 +84,6 @@ function ResultCard({
   onCompare: () => void;
 }) {
   const badges = resultBadges(product, answers);
-
   return (
     <article className={`alamaar-result-card ${index === 0 ? 'alamaar-result-card--hero' : ''}`}>
       <div className="alamaar-result-card__image">
@@ -128,17 +134,7 @@ function HistoryQuestion({ title }: { title: string }) {
   );
 }
 
-function LiveMascot({
-  state,
-  stepIndex,
-  look,
-  riveSrc,
-}: {
-  state: MascotState;
-  stepIndex: number;
-  look: { x: number; y: number };
-  riveSrc: string | null;
-}) {
+function LiveMascot({ state, stepIndex, look, riveSrc }: { state: MascotState; stepIndex: number; look: { x: number; y: number }; riveSrc: string | null }) {
   return (
     <div className="alamaar-chat__live-mascot" aria-hidden="true">
       <MascotStage state={state} stepIndex={stepIndex} lookX={look.x} lookY={look.y} talking={false} engaged riveSrc={riveSrc} />
@@ -164,10 +160,10 @@ export default function AlamaarChatPage() {
   const reactionTimer = useRef<number | null>(null);
   const thinkTimer = useRef<number | null>(null);
   const advanceTimer = useRef<number | null>(null);
-  const freeformTimer = useRef<number | null>(null);
   const frameRef = useRef<number | null>(null);
   const threadRef = useRef<HTMLDivElement | null>(null);
   const pointerRef = useRef({ x: 0, y: 0 });
+  const aiAbortRef = useRef<AbortController | null>(null);
 
   const riveSrc = useMemo(() => new URLSearchParams(window.location.search).get('rive')?.trim() || null, []);
 
@@ -188,8 +184,8 @@ export default function AlamaarChatPage() {
     if (reactionTimer.current) window.clearTimeout(reactionTimer.current);
     if (thinkTimer.current) window.clearTimeout(thinkTimer.current);
     if (advanceTimer.current) window.clearTimeout(advanceTimer.current);
-    if (freeformTimer.current) window.clearTimeout(freeformTimer.current);
     if (frameRef.current) window.cancelAnimationFrame(frameRef.current);
+    aiAbortRef.current?.abort();
   }, []);
 
   const currentStep = STEPS[stepIndex];
@@ -198,26 +194,20 @@ export default function AlamaarChatPage() {
   const isGuidedThinking = Boolean(selectedValue) && flowPhase !== 'idle';
   const recommendations = useMemo(() => rankProducts(catalog, answers, 3), [catalog, answers]);
   const baseCharacterState = mascotState(stepIndex, answers, reaction);
-  const characterState: MascotState = chatStatus === 'thinking' || flowPhase === 'thinking'
-    ? 'think'
-    : composerFocused
-      ? 'listen'
-      : baseCharacterState;
+  const characterState: MascotState = chatStatus === 'thinking' || flowPhase === 'thinking' ? 'think' : composerFocused ? 'listen' : baseCharacterState;
   const mood = sceneTone(answers);
   const answeredCount = Object.values(answers).filter(Boolean).length;
   const canRevealEarly = !isResults && stepIndex >= 1 && answeredCount >= 2;
   const completedSteps = STEPS
     .map((step, index) => ({ step, index, label: answerLabel(step.key, answers[step.key]) }))
     .filter((item) => Boolean(item.label) && (isResults || item.index < stepIndex));
-  const unresolvedFreeformTurns = freeformTurns.filter((turn) => !turn.resolvedAnswer || turn.stepIndex === stepIndex);
+  const unresolvedFreeformTurns = freeformTurns.filter((turn) => !turn.resolvedAnswer);
   const comparedProducts = compareIds
     .map((id) => catalog.find((product) => product.id === id))
     .filter((product): product is AlamaarProduct => Boolean(product));
 
   useEffect(() => {
-    const id = window.requestAnimationFrame(() => {
-      threadRef.current?.scrollTo({ top: threadRef.current.scrollHeight, behavior: 'smooth' });
-    });
+    const id = window.requestAnimationFrame(() => threadRef.current?.scrollTo({ top: threadRef.current.scrollHeight, behavior: 'smooth' }));
     return () => window.cancelAnimationFrame(id);
   }, [chatStatus, flowPhase, freeformTurns.length, isResults, selectedValue, stepIndex]);
 
@@ -234,17 +224,8 @@ export default function AlamaarChatPage() {
     clearFlowTimers();
     setFlowPhase('acknowledge');
     setReaction('approve');
-
-    reactionTimer.current = window.setTimeout(() => {
-      setReaction('idle');
-      reactionTimer.current = null;
-    }, 260);
-
-    thinkTimer.current = window.setTimeout(() => {
-      setFlowPhase('thinking');
-      thinkTimer.current = null;
-    }, 300);
-
+    reactionTimer.current = window.setTimeout(() => { setReaction('idle'); reactionTimer.current = null; }, 260);
+    thinkTimer.current = window.setTimeout(() => { setFlowPhase('thinking'); thinkTimer.current = null; }, 300);
     advanceTimer.current = window.setTimeout(() => {
       setReaction('idle');
       setFlowPhase('idle');
@@ -261,6 +242,7 @@ export default function AlamaarChatPage() {
 
   const goToStep = (index: number) => {
     if (index < 0 || index >= STEPS.length) return;
+    aiAbortRef.current?.abort();
     clearFlowTimers();
     setReaction('idle');
     setFlowPhase('idle');
@@ -274,17 +256,10 @@ export default function AlamaarChatPage() {
     setStepIndex(index);
   };
 
-  const back = () => {
-    if (stepIndex > 0) goToStep(Math.min(stepIndex - 1, STEPS.length - 1));
-  };
-
-  const revealEarly = () => {
-    clearFlowTimers();
-    setFlowPhase('idle');
-    setStepIndex(STEPS.length);
-  };
-
+  const back = () => { if (stepIndex > 0) goToStep(Math.min(stepIndex - 1, STEPS.length - 1)); };
+  const revealEarly = () => { clearFlowTimers(); setFlowPhase('idle'); setStepIndex(STEPS.length); };
   const restart = () => {
+    aiAbortRef.current?.abort();
     clearFlowTimers();
     setAnswers({});
     setSavedIds([]);
@@ -301,49 +276,116 @@ export default function AlamaarChatPage() {
   const toggleSaved = (id: string) => setSavedIds((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
   const toggleCompare = (id: string) => setCompareIds((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id].slice(-2));
 
-  const submitFreeform = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const message = composer.trim();
-    if (!message || chatStatus === 'thinking' || flowPhase !== 'idle') return;
+  const applyFlowChoice = (stepKey: string, value: string) => {
+    const targetIndex = STEPS.findIndex((step) => step.key === stepKey);
+    const targetStep = STEPS[targetIndex];
+    const choice = targetStep?.choices.find((item) => choiceValue(item) === value);
+    if (!targetStep || !choice || chatStatus === 'thinking') return;
+    clearFlowTimers();
+    setAnswers((current) => {
+      const next = { ...current, [targetStep.key]: value };
+      STEPS.slice(targetIndex + 1).forEach((step) => delete next[step.key]);
+      return next;
+    });
+    setStepIndex(targetIndex);
+    scheduleGuidedAdvance(targetIndex + 1);
+  };
 
-    const interpretation = interpretFreeformLocally(message, stepIndex);
+  const sendFreeformMessage = async (message: string) => {
+    const trimmed = message.trim();
+    if (!trimmed || chatStatus === 'thinking' || flowPhase !== 'idle') return;
+
+    const interpretation = interpretFreeformLocally(trimmed, stepIndex);
     const userTurn: ConversationTurn = {
-      id: turnId('user'), role: 'user', text: message, kind: 'freeform', createdAt: Date.now(), stepIndex, resolvedAnswer: interpretation.answer,
+      id: turnId('user'),
+      role: 'user',
+      text: trimmed,
+      kind: 'freeform',
+      createdAt: Date.now(),
+      stepIndex,
+      resolvedAnswer: interpretation.answer,
     };
+
+    const historyForAi = [...freeformTurns, userTurn];
     setFreeformTurns((current) => [...current, userTurn].slice(-12));
     setComposer('');
     setComposerFocused(false);
-    setChatStatus('thinking');
 
-    if (freeformTimer.current) window.clearTimeout(freeformTimer.current);
-    freeformTimer.current = window.setTimeout(() => {
-      setChatStatus('idle');
-      if (interpretation.answer && currentStep) {
-        const matchedChoice = currentStep.choices.find((choice) => choiceValue(choice) === interpretation.answer?.value);
-        if (matchedChoice) {
-          setAnswers((current) => ({ ...current, [currentStep.key]: choiceValue(matchedChoice) }));
-          scheduleGuidedAdvance(interpretation.nextStepIndex ?? stepIndex + 1);
+    if (interpretation.answer && currentStep) {
+      setAnswers((current) => ({ ...current, [currentStep.key]: interpretation.answer?.value }));
+      scheduleGuidedAdvance(interpretation.nextStepIndex ?? stepIndex + 1);
+      return;
+    }
+
+    setChatStatus('thinking');
+    aiAbortRef.current?.abort();
+    const controller = new AbortController();
+    aiAbortRef.current = controller;
+
+    try {
+      const request = buildAlamaarAiRequest({ message: trimmed, stepIndex, answers, history: historyForAi, catalog });
+      const aiTurn = await requestAlamaarAiTurn(request, catalog, controller.signal);
+      const updateForCurrent = aiTurn.updates.find((update) => update.key === currentStep?.key);
+      const assistantTurn: ConversationTurn = {
+        id: turnId('assistant'),
+        role: 'assistant',
+        text: aiTurn.reply,
+        kind: 'ai',
+        createdAt: Date.now(),
+        stepIndex,
+        ui: aiTurn.ui,
+      };
+
+      setFreeformTurns((current) => {
+        const marked = updateForCurrent
+          ? current.map((turn) => turn.id === userTurn.id ? { ...turn, resolvedAnswer: updateForCurrent } : turn)
+          : current;
+        return [...marked, assistantTurn].slice(-12);
+      });
+
+      if (aiTurn.updates.length) {
+        const merged: Answers = { ...answers };
+        aiTurn.updates.forEach((update) => { merged[update.key] = update.value; });
+        setAnswers(merged);
+        setReaction('approve');
+        reactionTimer.current = window.setTimeout(() => setReaction('idle'), 300);
+        const target = firstUnansweredStep(merged);
+        if (target !== stepIndex) {
+          advanceTimer.current = window.setTimeout(() => {
+            setStepIndex(target);
+            setFlowPhase('idle');
+            advanceTimer.current = null;
+          }, 520);
         }
-      } else {
-        setFreeformTurns((current) => [...current, {
-          id: turnId('assistant'), role: 'assistant', text: interpretation.assistantText, kind: 'system', createdAt: Date.now(), stepIndex,
-        }].slice(-12));
       }
-      freeformTimer.current = null;
-    }, interpretation.requiresAi ? 720 : 330);
+    } catch (error) {
+      if (!controller.signal.aborted) {
+        const assistantTurn: ConversationTurn = {
+          id: turnId('assistant'),
+          role: 'assistant',
+          text: 'مش لاقطها كويس. جرّب تقولها بشكل أقصر.',
+          kind: 'system',
+          createdAt: Date.now(),
+          stepIndex,
+        };
+        setFreeformTurns((current) => [...current, assistantTurn].slice(-12));
+      }
+    } finally {
+      if (aiAbortRef.current === controller) aiAbortRef.current = null;
+      setChatStatus('idle');
+    }
+  };
+
+  const submitFreeform = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    void sendFreeformMessage(composer);
   };
 
   const handlePointerMove = (event: PointerEvent<HTMLElement>) => {
     if (event.pointerType === 'touch') return;
-    pointerRef.current = {
-      x: ((event.clientX / window.innerWidth) * 2 - 1) * 100,
-      y: ((event.clientY / window.innerHeight) * 2 - 1) * 100,
-    };
+    pointerRef.current = { x: ((event.clientX / window.innerWidth) * 2 - 1) * 100, y: ((event.clientY / window.innerHeight) * 2 - 1) * 100 };
     if (frameRef.current) return;
-    frameRef.current = window.requestAnimationFrame(() => {
-      frameRef.current = null;
-      setLook(pointerRef.current);
-    });
+    frameRef.current = window.requestAnimationFrame(() => { frameRef.current = null; setLook(pointerRef.current); });
   };
 
   return (
@@ -383,10 +425,21 @@ export default function AlamaarChatPage() {
               );
             })}
 
-            {unresolvedFreeformTurns.slice(-5).map((turn) => (
+            {unresolvedFreeformTurns.slice(-6).map((turn) => (
               <div className={`alamaar-chat__row alamaar-chat__row--${turn.role}`} key={turn.id}>
                 {turn.role === 'assistant' ? <div className="alamaar-chat__avatar alamaar-chat__avatar--ghost" aria-hidden="true">A</div> : null}
-                <div className={`alamaar-chat__bubble alamaar-chat__bubble--${turn.role}`}><span>{turn.text}</span></div>
+                <div className={`alamaar-chat__bubble alamaar-chat__bubble--${turn.role}`}>
+                  <span>{turn.text}</span>
+                  {turn.role === 'assistant' ? (
+                    <AiUiRenderer
+                      blocks={turn.ui}
+                      catalog={catalog}
+                      answers={answers}
+                      onSuggestion={(value) => void sendFreeformMessage(value)}
+                      onFlowChoice={applyFlowChoice}
+                    />
+                  ) : null}
+                </div>
               </div>
             ))}
 
