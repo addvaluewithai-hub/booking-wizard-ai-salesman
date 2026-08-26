@@ -20,12 +20,10 @@ export default function MascotStage({
   stepIndex,
   lookX,
   lookY,
-  talking = true,
   engaged = true,
   riveSrc,
 }: MascotStageProps) {
   const [riveReady, setRiveReady] = useState(false);
-  const expressiveTalking = talking && state !== 'listen' && state !== 'think';
 
   useEffect(() => {
     setRiveReady(false);
@@ -43,7 +41,7 @@ export default function MascotStage({
           stepIndex={stepIndex}
           lookX={lookX}
           lookY={lookY}
-          talking={expressiveTalking}
+          talking={false}
           engaged={engaged}
         />
       </div>
@@ -57,7 +55,7 @@ export default function MascotStage({
               stepIndex={stepIndex}
               lookX={lookX}
               lookY={lookY}
-              talking={expressiveTalking}
+              talking={false}
               engaged={engaged}
               onReady={() => setRiveReady(true)}
             />
@@ -66,7 +64,7 @@ export default function MascotStage({
       ) : null}
 
       <span className="alamaar-character-stage__engine">
-        {riveReady ? 'RIVE · LIVE' : 'MOTION RIG · LIVE'}
+        {riveReady ? 'RIVE · MICRO LIVE' : 'MICRO RIG · LIVE'}
       </span>
     </div>
   );
