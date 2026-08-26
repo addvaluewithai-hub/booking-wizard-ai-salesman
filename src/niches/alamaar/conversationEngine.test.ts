@@ -37,6 +37,28 @@ describe('Al Amaar conversation engine', () => {
     expect(result.effects).toEqual([]);
   });
 
+  it('never recreates the full current guided surface from AI candidates', () => {
+    const result = reduceSemanticEvents({
+      response: {
+        reply: 'قصدي الإحساس العام للتصميم.',
+        events: [{ type: 'clarify_current_question', candidates: [
+          { field: 'style', value: 'warm-wood' },
+          { field: 'style', value: 'modern-dark' },
+          { field: 'style', value: 'modern-light' },
+          { field: 'style', value: 'classic' },
+          { field: 'style', value: 'scandi' },
+          { field: 'style', value: 'statement' },
+        ] }],
+      },
+      answers: { project: 'kitchen' },
+      stepIndex: 1,
+      catalog: ALAMAAR_FALLBACK_PRODUCTS,
+    });
+
+    expect(result.effects).toEqual([]);
+    expect(result.nextStepIndex).toBe(1);
+  });
+
   it('turns semantic clarification candidates into an app-owned guided surface', () => {
     const result = reduceSemanticEvents({
       response: {
@@ -52,6 +74,49 @@ describe('Al Amaar conversation engine', () => {
     });
 
     expect(result.effects).toEqual([{ type: 'guided_candidates', stepKey: 'style', optionIds: ['modern-light', 'modern-dark'] }]);
+  });
+
+  it('invalidates stale downstream answers when an earlier answer changes', () => {
+    const result = reduceSemanticEvents({
+      response: {
+        reply: 'تمام، خليتها مكتب.',
+        events: [{ type: 'answer', field: 'project', value: 'office' }],
+      },
+      answers: {
+        project: 'kitchen',
+        style: 'modern-dark',
+        tone: 'dark',
+        application: 'doors',
+      },
+      stepIndex: 3,
+      catalog: ALAMAAR_FALLBACK_PRODUCTS,
+    });
+
+    expect(result.answers).toEqual({ project: 'office' });
+    expect(result.nextStepIndex).toBe(1);
+  });
+
+  it('preserves later answers explicitly supplied in the same semantic turn', () => {
+    const result = reduceSemanticEvents({
+      response: {
+        reply: 'مكتب مودرن فاتح.',
+        events: [
+          { type: 'answer', field: 'project', value: 'office' },
+          { type: 'answer', field: 'style', value: 'modern-light' },
+        ],
+      },
+      answers: {
+        project: 'kitchen',
+        style: 'modern-dark',
+        tone: 'dark',
+        application: 'doors',
+      },
+      stepIndex: 3,
+      catalog: ALAMAAR_FALLBACK_PRODUCTS,
+    });
+
+    expect(result.answers).toEqual({ project: 'office', style: 'modern-light' });
+    expect(result.nextStepIndex).toBe(2);
   });
 
   it('selects product IDs deterministically from semantic criteria', () => {
