@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type FormEvent, type PointerEvent
 import { ALAMAAR_FALLBACK_PRODUCTS, fetchAlamaarProducts, type AlamaarProduct } from './catalog';
 import { interpretFreeformLocally, type ConversationTurn } from './chatBridge';
 import { buildAlamaarAiRequest, requestAlamaarAiTurn } from './aiClient';
+import { advisorMomentForNextStep, buildAlamaarAdvisorRequest, requestAlamaarAdvisorLead } from './advisor';
 import { reduceSemanticEvents } from './conversationEngine';
 import ConversationEffectRenderer from './ConversationEffectRenderer';
 import MascotStage from './MascotStage';
@@ -32,6 +33,11 @@ type PersistedSession = {
   answers?: Answers;
   savedIds?: string[];
   freeformTurns?: ConversationTurn[];
+};
+
+type AdvisorLead = {
+  stepIndex: number;
+  text: string;
 };
 
 function restoreSession(): PersistedSession {
@@ -132,6 +138,7 @@ export default function AlamaarChatPageV2() {
   const [composerFocused, setComposerFocused] = useState(false);
   const [chatStatus, setChatStatus] = useState<'idle' | 'thinking'>('idle');
   const [freeformTurns, setFreeformTurns] = useState<ConversationTurn[]>(() => restored.freeformTurns ?? []);
+  const [advisorLead, setAdvisorLead] = useState<AdvisorLead | null>(null);
   const reactionTimer = useRef<number | null>(null);
   const thinkTimer = useRef<number | null>(null);
   const advanceTimer = useRef<number | null>(null);
@@ -139,6 +146,7 @@ export default function AlamaarChatPageV2() {
   const threadRef = useRef<HTMLDivElement | null>(null);
   const pointerRef = useRef({ x: 0, y: 0 });
   const aiAbortRef = useRef<AbortController | null>(null);
+  const advisorAbortRef = useRef<AbortController | null>(null);
   const riveSrc = useMemo(() => new URLSearchParams(window.location.search).get('rive')?.trim() || null, []);
 
   useEffect(() => {
@@ -157,6 +165,7 @@ export default function AlamaarChatPageV2() {
     if (advanceTimer.current) window.clearTimeout(advanceTimer.current);
     if (frameRef.current) window.cancelAnimationFrame(frameRef.current);
     aiAbortRef.current?.abort();
+    advisorAbortRef.current?.abort();
   }, []);
 
   const currentStep = STEPS[stepIndex];
@@ -177,12 +186,13 @@ export default function AlamaarChatPageV2() {
   const latestAssistantTurn = [...currentTurns].reverse().find((turn) => turn.role === 'assistant');
   const hasCurrentInterrupt = currentTurns.some((turn) => turn.role === 'user');
   const engineOwnsReplySurface = Boolean(latestAssistantTurn?.effects?.some((effect) => effect.type === 'guided_candidates'));
+  const activeAdvisorLead = advisorLead?.stepIndex === stepIndex ? advisorLead.text : null;
   const comparedProducts = compareIds.map((id) => catalog.find((product) => product.id === id)).filter((product): product is AlamaarProduct => Boolean(product));
 
   useEffect(() => {
     const id = window.requestAnimationFrame(() => threadRef.current?.scrollTo({ top: threadRef.current.scrollHeight, behavior: 'smooth' }));
     return () => window.cancelAnimationFrame(id);
-  }, [chatStatus, currentTurns.length, flowPhase, isResults, selectedValue, stepIndex]);
+  }, [activeAdvisorLead, chatStatus, currentTurns.length, flowPhase, isResults, selectedValue, stepIndex]);
 
   const clearFlowTimers = () => {
     if (reactionTimer.current) window.clearTimeout(reactionTimer.current);
@@ -193,8 +203,30 @@ export default function AlamaarChatPageV2() {
     advanceTimer.current = null;
   };
 
-  const scheduleGuidedAdvance = (targetIndex: number) => {
+  const prepareAdvisorLead = (targetIndex: number, nextAnswers: Answers) => {
+    advisorAbortRef.current?.abort();
+    advisorAbortRef.current = null;
+    setAdvisorLead(null);
+
+    const moment = advisorMomentForNextStep(targetIndex, nextAnswers);
+    if (!moment) return;
+
+    const controller = new AbortController();
+    advisorAbortRef.current = controller;
+    const request = buildAlamaarAdvisorRequest({ moment, answers: nextAnswers, nextStepIndex: targetIndex });
+    void requestAlamaarAdvisorLead(request, controller.signal)
+      .then((text) => {
+        if (!controller.signal.aborted && text) setAdvisorLead({ stepIndex: targetIndex, text });
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        if (advisorAbortRef.current === controller) advisorAbortRef.current = null;
+      });
+  };
+
+  const scheduleGuidedAdvance = (targetIndex: number, nextAnswers?: Answers) => {
     clearFlowTimers();
+    if (nextAnswers) prepareAdvisorLead(targetIndex, nextAnswers);
     setFlowPhase('acknowledge');
     setReaction('approve');
     reactionTimer.current = window.setTimeout(() => { setReaction('idle'); reactionTimer.current = null; }, 250);
@@ -214,13 +246,11 @@ export default function AlamaarChatPageV2() {
     if (!targetStep || !choice || chatStatus === 'thinking' || flowPhase !== 'idle') return;
 
     clearFlowTimers();
-    setAnswers((current) => {
-      const next = { ...current, [targetStep.key]: value };
-      STEPS.slice(targetIndex + 1).forEach((step) => delete next[step.key]);
-      return next;
-    });
+    const nextAnswers: Answers = { ...answers, [targetStep.key]: value };
+    STEPS.slice(targetIndex + 1).forEach((step) => delete nextAnswers[step.key]);
+    setAnswers(nextAnswers);
     setStepIndex(targetIndex);
-    scheduleGuidedAdvance(targetIndex + 1);
+    scheduleGuidedAdvance(targetIndex + 1, nextAnswers);
   };
 
   const selectChoice = (choice: Choice) => {
@@ -231,6 +261,8 @@ export default function AlamaarChatPageV2() {
   const goToStep = (index: number) => {
     if (index < 0 || index >= STEPS.length) return;
     aiAbortRef.current?.abort();
+    advisorAbortRef.current?.abort();
+    setAdvisorLead(null);
     clearFlowTimers();
     setReaction('idle');
     setFlowPhase('idle');
@@ -246,6 +278,8 @@ export default function AlamaarChatPageV2() {
 
   const restart = () => {
     aiAbortRef.current?.abort();
+    advisorAbortRef.current?.abort();
+    setAdvisorLead(null);
     clearFlowTimers();
     setAnswers({});
     setSavedIds([]);
@@ -263,6 +297,8 @@ export default function AlamaarChatPageV2() {
     const trimmed = message.trim();
     if (!trimmed || chatStatus === 'thinking' || flowPhase !== 'idle') return;
 
+    advisorAbortRef.current?.abort();
+    setAdvisorLead(null);
     const interpretation = interpretFreeformLocally(trimmed, stepIndex);
     const userTurn: ConversationTurn = {
       id: turnId('user'),
@@ -279,8 +315,9 @@ export default function AlamaarChatPageV2() {
     setComposerFocused(false);
 
     if (interpretation.answer && currentStep) {
-      setAnswers((current) => ({ ...current, [currentStep.key]: interpretation.answer?.value }));
-      scheduleGuidedAdvance(interpretation.nextStepIndex ?? stepIndex + 1);
+      const nextAnswers: Answers = { ...answers, [currentStep.key]: interpretation.answer.value };
+      setAnswers(nextAnswers);
+      scheduleGuidedAdvance(interpretation.nextStepIndex ?? stepIndex + 1, nextAnswers);
       return;
     }
 
@@ -386,7 +423,11 @@ export default function AlamaarChatPageV2() {
               <div className={`alamaar-chat__active alamaar-chat__active--v3 ${isGuidedThinking ? 'is-waiting' : ''}`} key={currentStep.key}>
                 <div className="alamaar-chat__row alamaar-chat__row--assistant alamaar-chat__row--live">
                   {hasCurrentInterrupt || chatStatus === 'thinking' || isGuidedThinking ? <StaticAvatar /> : <LiveMascot state={characterState} stepIndex={stepIndex} look={look} riveSrc={riveSrc} />}
-                  <div className="alamaar-chat__bubble alamaar-chat__bubble--assistant alamaar-chat__bubble--question"><div className="alamaar-chat__assistant-meta"><span>{shortLead(stepIndex, answers)}</span><i /></div><h1>{currentStep.title}</h1></div>
+                  <div className="alamaar-chat__bubble alamaar-chat__bubble--assistant alamaar-chat__bubble--question">
+                    <div className="alamaar-chat__assistant-meta"><span>{activeAdvisorLead ? 'ملاحظة سريعة' : shortLead(stepIndex, answers)}</span><i /></div>
+                    {activeAdvisorLead ? <p className="alamaar-chat__advisor-lead" aria-live="polite">{activeAdvisorLead}</p> : null}
+                    <h1>{currentStep.title}</h1>
+                  </div>
                 </div>
 
                 {currentTurns.map((turn) => {
@@ -415,7 +456,7 @@ export default function AlamaarChatPageV2() {
                     <div className={`alamaar-chat__quick-replies replies-${currentStep.choices.length}`}>
                       {currentStep.choices.map((choice) => <button key={choice.value} type="button" onClick={() => selectChoice(choice)} onFocus={() => setLook({ x: -62, y: 12 })} data-choice-tone={choice.tone ?? ''}><span className="alamaar-chat__quick-icon">{choice.icon}</span><strong>{choice.label}</strong></button>)}
                     </div>
-                    <div className="alamaar-chat__reply-actions"><button type="button" onClick={() => stepIndex > 0 && goToStep(stepIndex - 1)} disabled={stepIndex === 0}>رجوع</button>{canRevealEarly ? <button type="button" onClick={() => { clearFlowTimers(); setStepIndex(STEPS.length); }}>ورّيني ترشيحات</button> : null}</div>
+                    <div className="alamaar-chat__reply-actions"><button type="button" onClick={() => stepIndex > 0 && goToStep(stepIndex - 1)} disabled={stepIndex === 0}>رجوع</button>{canRevealEarly ? <button type="button" onClick={() => { advisorAbortRef.current?.abort(); setAdvisorLead(null); clearFlowTimers(); setStepIndex(STEPS.length); }}>ورّيني ترشيحات</button> : null}</div>
                   </div>
                 ) : null}
               </div>
