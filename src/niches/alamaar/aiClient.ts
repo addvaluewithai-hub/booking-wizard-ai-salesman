@@ -55,7 +55,7 @@ export async function requestAlamaarAiTurn(
     throw new AlamaarAiError(body?.error || `AI request failed (${response.status})`);
   }
 
-  const turn = normalizeAiConversationResponse(body.turn, catalog);
+  const turn = normalizeAiConversationResponse(body.turn, catalog, request.stepIndex);
   if (!turn) throw new AlamaarAiError('AI returned an invalid component contract.');
   return turn;
 }
