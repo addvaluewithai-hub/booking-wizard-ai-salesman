@@ -1,9 +1,9 @@
-import type { AlamaarProduct } from './catalog';
 import type { Answers } from './experience';
+import { STEPS, choiceValue } from './experience';
 import {
-  normalizeAiConversationResponse,
+  normalizeAiInterpreterResponse,
   type AiConversationRequest,
-  type AiConversationResponse,
+  type AiInterpreterResponse,
 } from './aiContract';
 import type { ConversationTurn } from './chatBridge';
 
@@ -19,30 +19,34 @@ export function buildAlamaarAiRequest({
   stepIndex,
   answers,
   history,
-  catalog,
 }: {
   message: string;
   stepIndex: number;
   answers: Answers;
   history: ConversationTurn[];
-  catalog: AlamaarProduct[];
 }): AiConversationRequest {
+  const step = STEPS[stepIndex];
   return {
     message: message.trim().slice(0, 700),
     stepIndex,
     answers,
+    currentStep: step
+      ? {
+          key: step.key,
+          title: step.title,
+          options: step.choices.map((choice) => ({ value: choiceValue(choice), label: choice.label })),
+        }
+      : null,
     history: history
       .slice(-6)
       .map((turn) => ({ role: turn.role, text: turn.text.slice(0, 320) })),
-    catalog: catalog.slice(0, 50).map(({ id, name, code, family, tone }) => ({ id, name, code, family, tone })),
   };
 }
 
 export async function requestAlamaarAiTurn(
   request: AiConversationRequest,
-  catalog: AlamaarProduct[],
   signal?: AbortSignal,
-): Promise<AiConversationResponse> {
+): Promise<AiInterpreterResponse> {
   const response = await fetch('/api/alamaar-chat', {
     method: 'POST',
     signal,
@@ -55,7 +59,7 @@ export async function requestAlamaarAiTurn(
     throw new AlamaarAiError(body?.error || `AI request failed (${response.status})`);
   }
 
-  const turn = normalizeAiConversationResponse(body.turn, catalog, request.stepIndex);
-  if (!turn) throw new AlamaarAiError('AI returned an invalid component contract.');
+  const turn = normalizeAiInterpreterResponse(body.turn);
+  if (!turn) throw new AlamaarAiError('AI returned an invalid semantic event contract.');
   return turn;
 }
