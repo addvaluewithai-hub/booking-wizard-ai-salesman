@@ -1,5 +1,5 @@
-import { STEPS, choiceValue, type AnswerKey, type Answers, type WizardStep } from './experience';
-import type { AiUiBlock } from './aiContract';
+import { STEPS, choiceValue, type AnswerKey, type WizardStep } from './experience';
+import type { ConversationEffect } from './conversationEngine';
 
 export type ConversationRole = 'user' | 'assistant';
 
@@ -17,27 +17,13 @@ export type ConversationTurn = {
   createdAt: number;
   stepIndex?: number;
   resolvedAnswer?: StructuredAnswer;
-  ui?: AiUiBlock[];
+  effects?: ConversationEffect[];
 };
 
 export type FreeformInterpretation = {
   intent: 'known-answer' | 'needs-ai';
   requiresAi: boolean;
   assistantText: string;
-  answer?: StructuredAnswer;
-  nextStepIndex?: number;
-};
-
-export type AiConversationRequest = {
-  message: string;
-  stepIndex: number;
-  answers: Answers;
-  currentStep: Pick<WizardStep, 'key' | 'title' | 'choices'> | null;
-};
-
-export type AiConversationResponse = {
-  intent: 'answer' | 'question' | 'clarify';
-  reply: string;
   answer?: StructuredAnswer;
   nextStepIndex?: number;
 };
@@ -125,17 +111,5 @@ export function interpretFreeformLocally(message: string, stepIndex: number): Fr
     intent: 'needs-ai',
     requiresAi: true,
     assistantText: 'ممكن توضّحها بكلمتين؟',
-  };
-}
-
-export function buildAiConversationRequest(message: string, stepIndex: number, answers: Answers): AiConversationRequest {
-  const currentStep = STEPS[stepIndex];
-  return {
-    message,
-    stepIndex,
-    answers,
-    currentStep: currentStep
-      ? { key: currentStep.key, title: currentStep.title, choices: currentStep.choices }
-      : null,
   };
 }
