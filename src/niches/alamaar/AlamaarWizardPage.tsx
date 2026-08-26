@@ -1,1 +1,1 @@
-export { default } from './AlamaarChatPage';
+export { default } from './AlamaarChatPageV2';
