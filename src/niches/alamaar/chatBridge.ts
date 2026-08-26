@@ -2,18 +2,20 @@ import { STEPS, choiceValue, type AnswerKey, type Answers, type WizardStep } fro
 
 export type ConversationRole = 'user' | 'assistant';
 
+export type StructuredAnswer = {
+  key: AnswerKey;
+  value: string;
+  label: string;
+};
+
 export type ConversationTurn = {
   id: string;
   role: ConversationRole;
   text: string;
   kind: 'freeform' | 'system';
   createdAt: number;
-};
-
-export type StructuredAnswer = {
-  key: AnswerKey;
-  value: string;
-  label: string;
+  stepIndex?: number;
+  resolvedAnswer?: StructuredAnswer;
 };
 
 export type FreeformInterpretation = {
