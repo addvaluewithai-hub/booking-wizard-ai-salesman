@@ -10,9 +10,9 @@ export type StructuredAnswer = {
 
 export type ConversationTurn = {
   id: string;
-  role: ConversationRole;
+  role: string;
   text: string;
-  kind: 'freeform' | 'system';
+  kind: string;
   createdAt: number;
   stepIndex?: number;
   resolvedAnswer?: StructuredAnswer;
