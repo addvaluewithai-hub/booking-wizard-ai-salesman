@@ -14,9 +14,9 @@ The `/alamaar` experience is a guided visual chat. Known choices stay determinis
 
 The system follows one rule:
 
-> AI understands. Engine decides. UI renders.
+> AI understands and advises. Engine decides. UI renders.
 
-Gemini is a language interpreter, not a UI planner. It never emits JSX, HTML, CSS, URLs, component names, product IDs or route indexes.
+Gemini is a consultative material advisor and semantic interpreter, not a UI planner. It never emits JSX, HTML, CSS, URLs, component names, product IDs or route indexes.
 
 Both button clicks and free text ultimately become domain meaning. A button already knows its meaning; free text needs Gemini to translate it.
 
@@ -26,7 +26,24 @@ known button ───────────────┐
 free text -> Gemini events ─┘
 ```
 
-This keeps one brain for the flow: `conversationEngine.ts`.
+This keeps one brain for application state and rendering: `conversationEngine.ts`.
+
+## Consultative sales brain
+
+`functions/_shared/alamaar-site-brain.js` is a curated, grounded commercial knowledge layer for the Al Amaar advisor. It contains only information the assistant is allowed to use as selling context:
+
+- brand positioning and proof points: since 1996, official ACE MICA partnership, project support, nationwide support and brand-level ready-stock positioning
+- material families: HPL, Foam Board, Plywood and Natural Wood with practical use contexts
+- finish directions: wood, solid, stone and decorative with the spaces they are naturally suited to
+- collection groupings such as Classic Wood, Solid Colors, Stone, Ruby Collection, Textile, Cane, Metallic and related directions
+- selected project stories that can be used as restrained social proof when relevant
+- a consultative sales method: discover only what changes the recommendation, recommend a direction, explain one reason, reduce risk, then offer one useful next move
+
+The model is encouraged to sell through relevance rather than pressure. It should occasionally steer away from a weaker fit instead of praising every choice.
+
+The advisor may proactively emit `product_request` when at least two clear preferences are already known and a small shortlist would genuinely help. The engine still selects the real product IDs. A simple clarification such as `يعني إيه؟` must never trigger product cards by itself.
+
+The site brain deliberately separates brand proof from SKU-level claims. Brand-level ready stock does not mean a specific finish is currently available, and quality documentation does not mean every individual SKU carries every technical property.
 
 ## Semantic AI contract
 
@@ -79,7 +96,7 @@ For a request such as `وريني حاجة خشبي داكن` Gemini returns cri
 
 The browser-side conversation engine filters/ranks the real catalog deterministically and emits a `product_results` view effect containing real IDs. React then resolves those IDs to the trusted product records and renders the cards.
 
-Gemini never sees or chooses product IDs in this path.
+Gemini never chooses product IDs in this path.
 
 ## Engine-owned view effects
 
@@ -104,9 +121,9 @@ Examples:
 
 ## Grounding
 
-The interpreter is explicitly blocked from inventing price, stock, durability, fire/water resistance, certifications, dimensions, availability or unsupported technical performance.
+The advisor is explicitly blocked from inventing price, discounts, SKU-level stock, delivery dates, durability, fire/water resistance, certifications, dimensions, thickness or unsupported technical performance.
 
-The AI request no longer includes the catalog because the model does not need product records to interpret user intent. Product selection happens after interpretation inside application code.
+The model receives curated material-family and use-case knowledge, but product selection still happens after interpretation inside application code.
 
 ## Server boundary
 
