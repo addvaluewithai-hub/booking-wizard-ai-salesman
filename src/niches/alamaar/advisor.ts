@@ -8,9 +8,9 @@ export type AdvisorLeadRequest = {
   nextStep: null | { key: string; title: string };
 };
 
-export function advisorMomentForAnswer(answeredStepIndex: number, answers: Answers): AdvisorMoment | null {
-  if (answeredStepIndex === 1 && answers.project && answers.style) return 'after-style';
-  if (answeredStepIndex === 2 && answers.project && answers.style && answers.tone) return 'after-tone';
+export function advisorMomentForNextStep(nextStepIndex: number, answers: Answers): AdvisorMoment | null {
+  if (nextStepIndex === 2 && answers.project && answers.style) return 'after-style';
+  if (nextStepIndex === 3 && answers.project && answers.style && answers.tone) return 'after-tone';
   return null;
 }
 
