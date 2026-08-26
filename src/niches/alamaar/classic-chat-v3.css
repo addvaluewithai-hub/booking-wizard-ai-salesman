@@ -85,6 +85,25 @@
   font-size: 8px;
 }
 
+.alamaar-chat__advisor-lead {
+  margin: 2px 0 7px;
+  max-width: 46ch;
+  color: #6f5b45;
+  font-size: 11px;
+  line-height: 1.65;
+  font-weight: 650;
+  animation: alamaar-advisor-lead-in .46s cubic-bezier(.18,.78,.25,1) both;
+}
+
+.alamaar-chat__advisor-lead::before {
+  content: '✦';
+  display: inline-block;
+  margin-inline-end: 6px;
+  color: #b68446;
+  font-size: 8px;
+  transform: translateY(-1px);
+}
+
 .alamaar-chat__compare-note {
   margin: 10px 0;
   padding: 9px 11px;
@@ -111,6 +130,11 @@
   to { opacity: 1; transform: translateY(0); }
 }
 
+@keyframes alamaar-advisor-lead-in {
+  from { opacity: 0; transform: translateY(5px); filter: blur(2px); }
+  to { opacity: .96; transform: translateY(0); filter: blur(0); }
+}
+
 @media (max-width: 560px) {
   .alamaar-chat__ai-surface {
     width: calc(100% - 76px);
@@ -130,12 +154,18 @@
     padding: 7px 9px;
     font-size: 9px;
   }
+
+  .alamaar-chat__advisor-lead {
+    font-size: 10px;
+    max-width: 38ch;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .alamaar-chat__row--ai-active,
   .alamaar-chat__ai-surface,
-  .alamaar-chat__reply-zone--resume {
+  .alamaar-chat__reply-zone--resume,
+  .alamaar-chat__advisor-lead {
     animation: none !important;
   }
 }
