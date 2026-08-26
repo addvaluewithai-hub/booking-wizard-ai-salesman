@@ -12,6 +12,7 @@ export type MascotStageProps = {
   lookY: number;
   talking?: boolean;
   engaged?: boolean;
+  seated?: boolean;
   riveSrc?: string | null;
 };
 
@@ -21,6 +22,7 @@ export default function MascotStage({
   lookX,
   lookY,
   engaged = true,
+  seated = false,
   riveSrc,
 }: MascotStageProps) {
   const [riveReady, setRiveReady] = useState(false);
@@ -31,9 +33,10 @@ export default function MascotStage({
 
   return (
     <div
-      className={`alamaar-character-stage ${riveReady ? 'is-rive-ready' : 'is-fallback'}`}
+      className={`alamaar-character-stage ${riveReady ? 'is-rive-ready' : 'is-fallback'} ${seated ? 'is-seated' : ''}`}
       data-mascot-state={state}
       data-character-engine={riveReady ? 'rive' : 'procedural'}
+      data-seated={seated ? 'true' : 'false'}
     >
       <div className="alamaar-character-stage__procedural" aria-hidden={riveReady}>
         <ProceduralMascot
@@ -57,6 +60,7 @@ export default function MascotStage({
               lookY={lookY}
               talking={false}
               engaged={engaged}
+              seated={seated}
               onReady={() => setRiveReady(true)}
             />
           </div>
@@ -64,7 +68,7 @@ export default function MascotStage({
       ) : null}
 
       <span className="alamaar-character-stage__engine">
-        {riveReady ? 'RIVE · MICRO LIVE' : 'MICRO RIG · LIVE'}
+        {riveReady ? 'RIVE · MICRO LIVE' : seated ? 'SEATED RIG · LIVE' : 'MICRO RIG · LIVE'}
       </span>
     </div>
   );
