@@ -25,6 +25,7 @@ export default function MascotStage({
   riveSrc,
 }: MascotStageProps) {
   const [riveReady, setRiveReady] = useState(false);
+  const expressiveTalking = talking && state !== 'listen' && state !== 'think';
 
   useEffect(() => {
     setRiveReady(false);
@@ -42,7 +43,7 @@ export default function MascotStage({
           stepIndex={stepIndex}
           lookX={lookX}
           lookY={lookY}
-          talking={talking}
+          talking={expressiveTalking}
           engaged={engaged}
         />
       </div>
@@ -56,7 +57,7 @@ export default function MascotStage({
               stepIndex={stepIndex}
               lookX={lookX}
               lookY={lookY}
-              talking={talking}
+              talking={expressiveTalking}
               engaged={engaged}
               onReady={() => setRiveReady(true)}
             />
