@@ -33,6 +33,34 @@ describe('Al Amaar AI component contract', () => {
     expect(result?.ui).toEqual([{ type: 'products', data: { productIds: [validId] } }]);
   });
 
+  it('drops a full duplicate of the current guided choices', () => {
+    const result = normalizeAiConversationResponse({
+      intent: 'clarify',
+      reply: 'قصدي إحساس التصميم: دافي، مودرن، كلاسيك… اختار الأقرب ليك.',
+      updates: [],
+      ui: [{
+        type: 'flow_choices',
+        data: {
+          stepKey: 'style',
+          optionIds: ['warm-wood', 'modern-dark', 'modern-light', 'classic', 'scandi', 'statement'],
+        },
+      }],
+    }, ALAMAAR_FALLBACK_PRODUCTS, 1);
+
+    expect(result?.ui).toEqual([]);
+  });
+
+  it('keeps a strict subset when AI genuinely narrows a clarification', () => {
+    const result = normalizeAiConversationResponse({
+      intent: 'clarify',
+      reply: 'تقصد مودرن فاتح ولا مودرن داكن؟',
+      updates: [],
+      ui: [{ type: 'flow_choices', data: { stepKey: 'style', optionIds: ['modern-light', 'modern-dark'] } }],
+    }, ALAMAAR_FALLBACK_PRODUCTS, 1);
+
+    expect(result?.ui).toEqual([{ type: 'flow_choices', data: { stepKey: 'style', optionIds: ['modern-light', 'modern-dark'] } }]);
+  });
+
   it('rejects a response with no usable reply', () => {
     expect(normalizeAiConversationResponse({ intent: 'question', reply: '', updates: [], ui: [] }, ALAMAAR_FALLBACK_PRODUCTS)).toBeNull();
   });
