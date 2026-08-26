@@ -1,0 +1,394 @@
+.alamaar-proc {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  transform-origin: 50% 94%;
+  pointer-events: none;
+}
+
+.alamaar-proc svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  overflow: visible;
+}
+
+.alamaar-proc__rig,
+.alamaar-proc__body,
+.alamaar-proc__face,
+.alamaar-proc__arm,
+.alamaar-proc__leg,
+.alamaar-proc__hand,
+.alamaar-proc__glasses,
+.alamaar-proc__sparkles,
+.alamaar-proc__mouth-wrap,
+.alamaar-proc__brow,
+.alamaar-proc__eyelid {
+  transform-box: fill-box;
+}
+
+.alamaar-proc__rig {
+  transform-origin: 50% 90%;
+  animation: alamaar-proc-breathe 3.8s ease-in-out infinite;
+}
+
+.alamaar-proc__body {
+  transform-origin: 50% 88%;
+  animation: alamaar-proc-body-breathe 3.8s ease-in-out infinite;
+}
+
+.alamaar-proc__body-shine {
+  animation: alamaar-proc-shine 6s ease-in-out infinite;
+}
+
+.alamaar-proc__face {
+  transform-origin: 50% 58%;
+  transition: transform 120ms ease-out;
+}
+
+.alamaar-proc__arm {
+  transition: transform 420ms cubic-bezier(.2,.9,.22,1.18);
+}
+
+.alamaar-proc__arm--left { transform-origin: 82% 16%; }
+.alamaar-proc__arm--right { transform-origin: 18% 16%; }
+.alamaar-proc__leg--left { transform-origin: 70% 4%; }
+.alamaar-proc__leg--right { transform-origin: 30% 4%; }
+
+.alamaar-proc__pupil {
+  transition: transform 90ms linear;
+}
+
+.alamaar-proc__eyelid {
+  opacity: 0;
+  transform-origin: 50% 50%;
+  transition: opacity 45ms linear;
+}
+
+.alamaar-proc.is-blinking .alamaar-proc__eyelid {
+  opacity: 1;
+}
+
+.alamaar-proc__brow {
+  transform-origin: 50% 50%;
+  transition: transform 260ms ease, opacity 260ms ease;
+}
+
+.alamaar-proc__mouth--smile,
+.alamaar-proc__teeth,
+.alamaar-proc__tongue,
+.alamaar-proc__mouth--talk,
+.alamaar-proc__talk-teeth {
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
+}
+
+.alamaar-proc__mouth--talk,
+.alamaar-proc__talk-teeth {
+  opacity: 0;
+}
+
+.alamaar-proc.is-talking .alamaar-proc__mouth--smile,
+.alamaar-proc.is-talking .alamaar-proc__teeth,
+.alamaar-proc.is-talking .alamaar-proc__tongue {
+  animation: alamaar-proc-smile-swap 1.35s steps(1, end) infinite;
+}
+
+.alamaar-proc.is-talking .alamaar-proc__mouth--talk,
+.alamaar-proc.is-talking .alamaar-proc__talk-teeth {
+  animation: alamaar-proc-talk-swap 1.35s steps(1, end) infinite;
+}
+
+.alamaar-proc.is-talking .alamaar-proc__mouth--talk {
+  animation-name: alamaar-proc-talk-swap, alamaar-proc-talk-shape;
+  animation-duration: 1.35s, .24s;
+  animation-timing-function: steps(1, end), ease-in-out;
+  animation-iteration-count: infinite;
+}
+
+.alamaar-proc__glasses {
+  opacity: 0;
+  transform: translateY(-22px) scale(.86) rotate(-4deg);
+  transform-origin: 50% 50%;
+  transition: opacity 180ms ease, transform 360ms cubic-bezier(.16,.9,.28,1.35);
+}
+
+.alamaar-proc__sparkles {
+  opacity: 0;
+  transition: opacity 180ms ease;
+}
+
+.alamaar-proc__spark {
+  transform-origin: 50% 50%;
+}
+
+.alamaar-proc__floor,
+.alamaar-proc__floor-glow {
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
+  animation: alamaar-proc-shadow 3.8s ease-in-out infinite;
+}
+
+/* Welcome: confident wave, not frantic. */
+.alamaar-proc[data-state="welcome"] .alamaar-proc__arm--right {
+  animation: alamaar-proc-wave 1.65s cubic-bezier(.22,.8,.24,1) infinite;
+}
+
+.alamaar-proc[data-state="welcome"] .alamaar-proc__brow--left {
+  transform: rotate(-5deg) translateY(-2px);
+}
+
+.alamaar-proc[data-state="welcome"] .alamaar-proc__rig {
+  animation-name: alamaar-proc-breathe, alamaar-proc-welcome-settle;
+  animation-duration: 3.8s, 1.2s;
+  animation-timing-function: ease-in-out, cubic-bezier(.16,.9,.3,1);
+  animation-iteration-count: infinite, 1;
+}
+
+/* Listening: small forward lean + open posture. */
+.alamaar-proc[data-state="listen"] .alamaar-proc__rig {
+  transform: translateY(2px) rotate(-1.2deg);
+}
+
+.alamaar-proc[data-state="listen"] .alamaar-proc__arm--left {
+  transform: rotate(-8deg) translate(-2px, -2px);
+}
+
+.alamaar-proc[data-state="listen"] .alamaar-proc__arm--right {
+  transform: rotate(8deg) translate(2px, -1px);
+}
+
+.alamaar-proc[data-state="listen"] .alamaar-proc__brow--left,
+.alamaar-proc[data-state="listen"] .alamaar-proc__brow--right {
+  transform: translateY(-2px);
+}
+
+/* Thinking: asymmetric brows + hand near chin + slow weight shift. */
+.alamaar-proc[data-state="think"] .alamaar-proc__rig {
+  animation: alamaar-proc-think-shift 2.8s ease-in-out infinite;
+}
+
+.alamaar-proc[data-state="think"] .alamaar-proc__arm--right {
+  transform: rotate(-35deg) translate(-15px, -34px);
+}
+
+.alamaar-proc[data-state="think"] .alamaar-proc__brow--left {
+  transform: rotate(-9deg) translateY(1px);
+}
+
+.alamaar-proc[data-state="think"] .alamaar-proc__brow--right {
+  transform: rotate(8deg) translateY(-5px);
+}
+
+.alamaar-proc[data-state="think"] .alamaar-proc__mouth-wrap {
+  transform: scale(.9) translateY(2px);
+}
+
+/* Approve: quick nod, chest lift, sparkle pop. */
+.alamaar-proc[data-state="approve"] .alamaar-proc__rig {
+  animation: alamaar-proc-approve .72s cubic-bezier(.18,.9,.24,1.25) 1 both;
+}
+
+.alamaar-proc[data-state="approve"] .alamaar-proc__sparkles {
+  opacity: 1;
+}
+
+.alamaar-proc[data-state="approve"] .alamaar-proc__spark--1 {
+  animation: alamaar-proc-spark-pop .62s ease-out 1;
+}
+
+.alamaar-proc[data-state="approve"] .alamaar-proc__spark--2 {
+  animation: alamaar-proc-spark-pop .62s .08s ease-out 1;
+}
+
+.alamaar-proc[data-state="approve"] .alamaar-proc__spark--3 {
+  animation: alamaar-proc-spark-pop .62s .15s ease-out 1;
+}
+
+.alamaar-proc[data-state="approve"] .alamaar-proc__brow--left,
+.alamaar-proc[data-state="approve"] .alamaar-proc__brow--right {
+  transform: translateY(-4px) rotate(-2deg);
+}
+
+/* Cool: sunglasses snap in, tiny swagger. */
+.alamaar-proc[data-state="cool"] .alamaar-proc__glasses {
+  opacity: 1;
+  transform: translateY(0) scale(1) rotate(-1deg);
+}
+
+.alamaar-proc[data-state="cool"] .alamaar-proc__rig {
+  animation: alamaar-proc-cool 2.6s ease-in-out infinite;
+}
+
+.alamaar-proc[data-state="cool"] .alamaar-proc__arm--left {
+  transform: rotate(10deg) translateY(2px);
+}
+
+.alamaar-proc[data-state="cool"] .alamaar-proc__arm--right {
+  transform: rotate(-10deg) translateY(2px);
+}
+
+.alamaar-proc[data-state="cool"] .alamaar-proc__sparkles {
+  opacity: .75;
+}
+
+/* Point: one clear gesture toward the experience. */
+.alamaar-proc[data-state="point"] .alamaar-proc__arm--left {
+  animation: alamaar-proc-point 1.7s ease-in-out infinite;
+}
+
+.alamaar-proc[data-state="point"] .alamaar-proc__rig {
+  transform: rotate(.8deg) translateX(2px);
+}
+
+/* Present: both arms open as the recommendations arrive. */
+.alamaar-proc[data-state="present"] .alamaar-proc__arm--left {
+  transform: rotate(24deg) translate(-5px, -13px);
+}
+
+.alamaar-proc[data-state="present"] .alamaar-proc__arm--right {
+  transform: rotate(-24deg) translate(5px, -13px);
+}
+
+.alamaar-proc[data-state="present"] .alamaar-proc__rig {
+  animation: alamaar-proc-present 2.8s ease-in-out infinite;
+}
+
+.alamaar-proc[data-state="present"] .alamaar-proc__sparkles {
+  opacity: .55;
+}
+
+/* Celebrate: short premium bounce with staggered sparkles. */
+.alamaar-proc[data-state="celebrate"] .alamaar-proc__rig {
+  animation: alamaar-proc-celebrate 1.15s cubic-bezier(.2,.85,.2,1.25) 2;
+}
+
+.alamaar-proc[data-state="celebrate"] .alamaar-proc__arm--left {
+  transform: rotate(-42deg) translate(-10px, -20px);
+}
+
+.alamaar-proc[data-state="celebrate"] .alamaar-proc__arm--right {
+  transform: rotate(42deg) translate(10px, -20px);
+}
+
+.alamaar-proc[data-state="celebrate"] .alamaar-proc__sparkles {
+  opacity: 1;
+}
+
+.alamaar-proc[data-state="celebrate"] .alamaar-proc__spark--1 { animation: alamaar-proc-spark-orbit 1.15s ease-in-out infinite; }
+.alamaar-proc[data-state="celebrate"] .alamaar-proc__spark--2 { animation: alamaar-proc-spark-orbit 1.15s .12s ease-in-out infinite reverse; }
+.alamaar-proc[data-state="celebrate"] .alamaar-proc__spark--3 { animation: alamaar-proc-spark-pulse .72s ease-in-out infinite; }
+
+@keyframes alamaar-proc-breathe {
+  0%, 100% { transform: translateY(0) rotate(0); }
+  50% { transform: translateY(-3px) rotate(.25deg); }
+}
+
+@keyframes alamaar-proc-body-breathe {
+  0%, 100% { transform: scale(1,1); }
+  50% { transform: scale(1.008,1.014); }
+}
+
+@keyframes alamaar-proc-shadow {
+  0%, 100% { transform: scaleX(1); opacity: .24; }
+  50% { transform: scaleX(.93); opacity: .19; }
+}
+
+@keyframes alamaar-proc-shine {
+  0%, 100% { opacity: .08; transform: translateX(-3px); }
+  50% { opacity: .18; transform: translateX(3px); }
+}
+
+@keyframes alamaar-proc-wave {
+  0%, 18%, 100% { transform: rotate(0deg) translate(0,0); }
+  30% { transform: rotate(38deg) translate(8px,-30px); }
+  45% { transform: rotate(21deg) translate(4px,-28px); }
+  58% { transform: rotate(39deg) translate(8px,-31px); }
+  72% { transform: rotate(24deg) translate(5px,-26px); }
+  84% { transform: rotate(0deg) translate(0,0); }
+}
+
+@keyframes alamaar-proc-welcome-settle {
+  0% { transform: translateY(12px) scale(.96); }
+  65% { transform: translateY(-5px) scale(1.015); }
+  100% { transform: translateY(0) scale(1); }
+}
+
+@keyframes alamaar-proc-think-shift {
+  0%, 100% { transform: translateY(0) rotate(-.6deg); }
+  50% { transform: translateY(-3px) rotate(1deg); }
+}
+
+@keyframes alamaar-proc-approve {
+  0% { transform: translateY(0) rotate(0) scale(1); }
+  34% { transform: translateY(5px) rotate(-1deg) scale(.985,1.01); }
+  64% { transform: translateY(-11px) rotate(1.2deg) scale(1.03,.98); }
+  100% { transform: translateY(0) rotate(0) scale(1); }
+}
+
+@keyframes alamaar-proc-cool {
+  0%, 100% { transform: translateY(0) rotate(-1deg); }
+  50% { transform: translateY(-4px) rotate(1.4deg); }
+}
+
+@keyframes alamaar-proc-point {
+  0%, 24%, 100% { transform: rotate(0deg) translate(0,0); }
+  40%, 68% { transform: rotate(33deg) translate(-12px,-26px); }
+  54% { transform: rotate(29deg) translate(-9px,-24px); }
+}
+
+@keyframes alamaar-proc-present {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(-4px) scale(1.012); }
+}
+
+@keyframes alamaar-proc-celebrate {
+  0%, 100% { transform: translateY(0) rotate(0) scale(1); }
+  30% { transform: translateY(-17px) rotate(-2deg) scale(1.02,.98); }
+  56% { transform: translateY(-5px) rotate(2deg) scale(.99,1.02); }
+  76% { transform: translateY(-11px) rotate(-1deg) scale(1.01,.99); }
+}
+
+@keyframes alamaar-proc-spark-pop {
+  0% { transform: scale(.2) rotate(-30deg); opacity: 0; }
+  55% { transform: scale(1.35) rotate(12deg); opacity: 1; }
+  100% { transform: scale(1) rotate(0); opacity: .8; }
+}
+
+@keyframes alamaar-proc-spark-orbit {
+  0%, 100% { transform: translate(0,0) rotate(0) scale(.85); opacity: .45; }
+  50% { transform: translate(4px,-10px) rotate(22deg) scale(1.18); opacity: 1; }
+}
+
+@keyframes alamaar-proc-spark-pulse {
+  0%,100% { transform: scale(.7); opacity: .45; }
+  50% { transform: scale(1.45); opacity: 1; }
+}
+
+@keyframes alamaar-proc-smile-swap {
+  0%, 18%, 34%, 49%, 65%, 81%, 100% { opacity: 1; }
+  22%, 30%, 53%, 61%, 85%, 94% { opacity: 0; }
+}
+
+@keyframes alamaar-proc-talk-swap {
+  0%, 18%, 34%, 49%, 65%, 81%, 100% { opacity: 0; }
+  22%, 30%, 53%, 61%, 85%, 94% { opacity: 1; }
+}
+
+@keyframes alamaar-proc-talk-shape {
+  0%, 100% { transform: scale(.9, .72); }
+  50% { transform: scale(1.04, 1.08); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .alamaar-proc *,
+  .alamaar-proc {
+    animation: none !important;
+    transition: none !important;
+  }
+
+  .alamaar-proc[data-state="cool"] .alamaar-proc__glasses { opacity: 1; transform: none; }
+  .alamaar-proc[data-state="approve"] .alamaar-proc__sparkles,
+  .alamaar-proc[data-state="present"] .alamaar-proc__sparkles,
+  .alamaar-proc[data-state="celebrate"] .alamaar-proc__sparkles { opacity: .7; }
+}
