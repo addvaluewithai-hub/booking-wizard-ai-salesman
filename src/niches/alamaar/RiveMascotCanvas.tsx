@@ -12,6 +12,7 @@ export type RiveMascotCanvasProps = {
   lookY: number;
   talking: boolean;
   engaged: boolean;
+  seated?: boolean;
   onReady?: () => void;
 };
 
@@ -44,6 +45,7 @@ export default function RiveMascotCanvas({
   lookX,
   lookY,
   engaged,
+  seated = false,
   onReady,
 }: RiveMascotCanvasProps) {
   const readyRef = useRef(false);
@@ -68,6 +70,7 @@ export default function RiveMascotCanvas({
   const inputGestureScale = useStateMachineInput(rive, STATE_MACHINE, 'gestureScale', 12);
   const inputMouthMotion = useStateMachineInput(rive, STATE_MACHINE, 'mouthMotion', 0);
   const inputMicroIntensity = useStateMachineInput(rive, STATE_MACHINE, 'microIntensity', 48);
+  const inputSeated = useStateMachineInput(rive, STATE_MACHINE, 'seated', false);
 
   const welcome = useStateMachineInput(rive, STATE_MACHINE, 'welcome');
   const listen = useStateMachineInput(rive, STATE_MACHINE, 'listen');
@@ -99,10 +102,11 @@ export default function RiveMascotCanvas({
     if (inputSmile) inputSmile.value = SMILE[state];
     if (inputTalkLevel) inputTalkLevel.value = 0;
     if (inputAttention) inputAttention.value = engaged ? 86 : 34;
-    if (inputGestureScale) inputGestureScale.value = 12;
+    if (inputGestureScale) inputGestureScale.value = seated ? 7 : 12;
     if (inputMouthMotion) inputMouthMotion.value = 0;
     if (inputMicroIntensity) inputMicroIntensity.value = state === 'approve' || state === 'cool' ? 66 : 48;
-  }, [engaged, inputAttention, inputCoolMode, inputEnergy, inputEngaged, inputGestureScale, inputMicroIntensity, inputMouthMotion, inputSmile, inputStep, inputTalkLevel, inputTalking, state, stepIndex]);
+    if (inputSeated) inputSeated.value = seated;
+  }, [engaged, inputAttention, inputCoolMode, inputEnergy, inputEngaged, inputGestureScale, inputMicroIntensity, inputMouthMotion, inputSeated, inputSmile, inputStep, inputTalkLevel, inputTalking, seated, state, stepIndex]);
 
   useEffect(() => {
     if (!rive || previousState.current === state) return;
