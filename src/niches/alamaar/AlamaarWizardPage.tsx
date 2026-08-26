@@ -1,170 +1,148 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ALAMAAR_FALLBACK_PRODUCTS, fetchAlamaarProducts, type AlamaarProduct } from './catalog';
+import MascotStage from './MascotStage';
+import {
+  STEPS,
+  choiceValue,
+  guideMessage,
+  mascotState,
+  rankProducts,
+  resultBadges,
+  resultReason,
+  sceneTone,
+  type AnswerKey,
+  type Answers,
+  type Choice,
+} from './experience';
 import './alamaar-wizard.css';
 
-type Tone = AlamaarProduct['tone'];
-type AnswerKey = 'project' | 'style' | 'tone' | 'application';
-type Answers = Partial<Record<AnswerKey, string>>;
+const SESSION_KEY = 'alamaar-guided-material-session-v2';
 
-type Choice = {
-  value: string;
-  label: string;
-  hint: string;
-  tone?: Tone;
-  icon: string;
+type PersistedSession = {
+  stepIndex?: number;
+  answers?: Answers;
+  savedIds?: string[];
 };
 
-type WizardStep = {
-  key: AnswerKey;
-  title: string;
-  subtitle: string;
-  choices: Choice[];
-};
+function restoreSession(): PersistedSession {
+  try {
+    const raw = window.sessionStorage.getItem(SESSION_KEY);
+    if (!raw) return {};
+    return JSON.parse(raw) as PersistedSession;
+  } catch {
+    return {};
+  }
+}
 
-const STEPS: WizardStep[] = [
-  {
-    key: 'project',
-    title: 'أين سيتم استخدام الخامة؟',
-    subtitle: 'اختر نوع المشروع',
-    choices: [
-      { value: 'kitchen', label: 'مطبخ', hint: 'وحدات وأسقف عمل', icon: '▦' },
-      { value: 'wardrobe', label: 'دريسنج / دواليب', hint: 'واجهات ومساحات كبيرة', icon: '▥' },
-      { value: 'furniture', label: 'أثاث / وحدات', hint: 'قطع مخصصة', icon: '▤' },
-      { value: 'office', label: 'مكتب', hint: 'مساحات عمل', icon: '▧' },
-      { value: 'retail', label: 'محل تجاري', hint: 'هوية وتجربة', icon: '◇' },
-      { value: 'hospitality', label: 'فندق / مطعم', hint: 'ضيافة وواجهات', icon: '◫' },
-    ],
-  },
-  {
-    key: 'style',
-    title: 'ما الأسلوب الأقرب لذوقك؟',
-    subtitle: 'اختر المظهر العام',
-    choices: [
-      { value: 'warm-wood', label: 'خشبي دافئ', hint: 'طبيعي ومريح', icon: '≋' },
-      { value: 'modern-dark', label: 'مودرن داكن', hint: 'قوي وهادئ', icon: '◼' },
-      { value: 'modern-light', label: 'مودرن فاتح', hint: 'نظيف ومضيء', icon: '□' },
-      { value: 'classic', label: 'كلاسيك', hint: 'تفاصيل غنية', icon: '⌘' },
-      { value: 'scandi', label: 'سكاندنافي', hint: 'فاتح وبسيط', icon: '△' },
-      { value: 'statement', label: 'جريء / فخم', hint: 'خامة لها حضور', icon: '✦' },
-    ],
-  },
-  {
-    key: 'tone',
-    title: 'أي درجة لونية تفضل؟',
-    subtitle: 'اختر الاتجاه الذي يناسب مساحتك',
-    choices: [
-      { value: 'light', label: 'فاتح', hint: 'يوسع الإحساس بالمكان', tone: 'light', icon: '○' },
-      { value: 'neutral', label: 'محايد', hint: 'مرن وسهل التنسيق', tone: 'neutral', icon: '◌' },
-      { value: 'wood', label: 'خشبي', hint: 'دفء وملمس طبيعي', tone: 'wood', icon: '◍' },
-      { value: 'dark', label: 'داكن', hint: 'فخامة وعمق', tone: 'dark', icon: '●' },
-    ],
-  },
-  {
-    key: 'application',
-    title: 'كيف سيتم تطبيق الخامة؟',
-    subtitle: 'اختر نوع الاستخدام',
-    choices: [
-      { value: 'worktop', label: 'أسطح مطابخ', hint: 'سطح بصري عملي', icon: '▬' },
-      { value: 'doors', label: 'واجهات دواليب', hint: 'مساحات رأسية', icon: '▥' },
-      { value: 'walls', label: 'حوائط داخلية', hint: 'تغطية وfeature walls', icon: '▱' },
-      { value: 'furniture', label: 'أثاث', hint: 'تفاصيل ووحدات', icon: '▰' },
-    ],
-  },
-];
+function answerLabel(key: AnswerKey, value?: string): string | undefined {
+  if (!value) return undefined;
+  const step = STEPS.find((item) => item.key === key);
+  return step?.choices.find((choice) => choiceValue(choice) === value)?.label;
+}
 
-const MASCOT_MESSAGES = [
-  'أهلاً 👋 قولي المشروع فين، وأنا أضيّق الاختيارات من غير ما نعقّدها.',
-  'جميل. دلوقتي نحدد الإحساس البصري اللي تحبه.',
-  'الدرجة اللونية بتفرق جدًا في إحساس المساحة.',
-  'آخر خطوة — طريقة الاستخدام هتخليني أرتب الترشيحات بشكل أذكى.',
-  'دي أقرب اختيارات من الكتالوج. تقدر تفتح الخامة أو تطلب مساعدة من الفريق.',
-];
+function ResultCard({
+  product,
+  index,
+  answers,
+  saved,
+  compared,
+  onSave,
+  onCompare,
+}: {
+  product: AlamaarProduct;
+  index: number;
+  answers: Answers;
+  saved: boolean;
+  compared: boolean;
+  onSave: () => void;
+  onCompare: () => void;
+}) {
+  const badges = resultBadges(product, answers);
 
-function Mascot({ state }: { state: 'wave' | 'think' | 'cool' | 'point' | 'celebrate' }) {
   return (
-    <div className={`alamaar-mascot alamaar-mascot--${state}`} aria-hidden="true">
-      <svg viewBox="0 0 220 280" role="img">
-        <defs>
-          <linearGradient id="woodBody" x1="0" x2="1">
-            <stop offset="0" stopColor="#9a6237" />
-            <stop offset="0.45" stopColor="#b97a48" />
-            <stop offset="1" stopColor="#7d4d2d" />
-          </linearGradient>
-          <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
-            <feDropShadow dx="0" dy="8" stdDeviation="7" floodOpacity="0.25" />
-          </filter>
-        </defs>
-        <ellipse cx="112" cy="253" rx="70" ry="15" fill="rgba(0,0,0,.2)" />
-        <g filter="url(#shadow)">
-          <path className="alamaar-mascot__arm alamaar-mascot__arm--left" d="M55 137 C27 145 21 167 16 186" fill="none" stroke="#8b572f" strokeWidth="15" strokeLinecap="round" />
-          <path className="alamaar-mascot__arm alamaar-mascot__arm--right" d="M168 140 C197 139 203 158 207 179" fill="none" stroke="#8b572f" strokeWidth="15" strokeLinecap="round" />
-          <circle cx="15" cy="187" r="10" fill="#b77a49" />
-          <circle cx="207" cy="180" r="10" fill="#b77a49" />
-          <rect x="53" y="42" width="116" height="183" rx="32" fill="url(#woodBody)" stroke="#55331f" strokeWidth="5" />
-          <path d="M72 63 C98 74 118 49 153 69" fill="none" stroke="rgba(74,40,20,.3)" strokeWidth="4" strokeLinecap="round" />
-          <path d="M67 110 C90 99 126 116 158 100" fill="none" stroke="rgba(74,40,20,.24)" strokeWidth="3" strokeLinecap="round" />
-          <path d="M70 184 C101 170 125 194 155 179" fill="none" stroke="rgba(74,40,20,.2)" strokeWidth="4" strokeLinecap="round" />
-          <ellipse cx="91" cy="111" rx="18" ry="23" fill="#fffaf0" stroke="#3b2618" strokeWidth="4" />
-          <ellipse cx="133" cy="111" rx="18" ry="23" fill="#fffaf0" stroke="#3b2618" strokeWidth="4" />
-          <circle className="alamaar-mascot__pupil" cx="95" cy="115" r="7" fill="#211711" />
-          <circle className="alamaar-mascot__pupil" cx="137" cy="115" r="7" fill="#211711" />
-          <path d="M85 88 Q93 80 102 87" fill="none" stroke="#3b2618" strokeWidth="5" strokeLinecap="round" />
-          <path d="M123 87 Q134 78 145 87" fill="none" stroke="#3b2618" strokeWidth="5" strokeLinecap="round" />
-          <path className="alamaar-mascot__mouth" d="M87 151 Q112 176 140 149 Q131 190 111 190 Q91 188 87 151" fill="#2b1710" stroke="#3b2618" strokeWidth="4" />
-          <path d="M96 159 Q112 168 132 157" stroke="#fff" strokeWidth="6" strokeLinecap="round" />
-          <path d="M80 224 L72 247" stroke="#6c4027" strokeWidth="14" strokeLinecap="round" />
-          <path d="M141 224 L148 247" stroke="#6c4027" strokeWidth="14" strokeLinecap="round" />
-          <path d="M61 250 Q76 240 90 252" fill="none" stroke="#3b2618" strokeWidth="9" strokeLinecap="round" />
-          <path d="M134 252 Q149 240 165 250" fill="none" stroke="#3b2618" strokeWidth="9" strokeLinecap="round" />
-          <g className="alamaar-mascot__glasses">
-            <rect x="72" y="95" width="40" height="25" rx="8" fill="#191919" />
-            <rect x="114" y="95" width="40" height="25" rx="8" fill="#191919" />
-            <path d="M110 102 H116" stroke="#191919" strokeWidth="5" />
-          </g>
-        </g>
-      </svg>
-    </div>
+    <article className={`alamaar-result-card ${index === 0 ? 'alamaar-result-card--hero' : ''}`}>
+      <div className="alamaar-result-card__image">
+        <img src={product.image} alt={`${product.name} ${product.code}`} loading={index === 0 ? 'eager' : 'lazy'} />
+        <div className="alamaar-result-card__image-actions">
+          <button type="button" onClick={onSave} aria-label={saved ? 'إزالة من المحفوظات' : 'حفظ الخامة'} aria-pressed={saved}>
+            {saved ? '♥' : '♡'}
+          </button>
+          <button type="button" onClick={onCompare} aria-label={compared ? 'إزالة من المقارنة' : 'إضافة للمقارنة'} aria-pressed={compared}>
+            {compared ? '✓' : '⇄'}
+          </button>
+        </div>
+        {index === 0 ? <span className="alamaar-result-card__rank">الأقرب لاختياراتك</span> : <span className="alamaar-result-card__rank">بديل {index}</span>}
+      </div>
+
+      <div className="alamaar-result-card__body">
+        <div className="alamaar-result-card__meta">
+          <small>{product.family.toUpperCase()}</small>
+          <strong>{product.code}</strong>
+        </div>
+        <h2>{product.name}</h2>
+        <p>{resultReason(product, answers)}</p>
+        <div className="alamaar-result-card__badges">
+          {badges.map((badge) => <span key={badge}>{badge}</span>)}
+        </div>
+        <div className="alamaar-result-card__links">
+          <a href={product.url} target="_blank" rel="noreferrer">افتح الخامة ↗</a>
+          <button type="button" onClick={onCompare}>{compared ? 'في المقارنة ✓' : 'قارنها'}</button>
+        </div>
+      </div>
+    </article>
   );
 }
 
-function getMascotState(stepIndex: number, answers: Answers): 'wave' | 'think' | 'cool' | 'point' | 'celebrate' {
-  if (stepIndex >= STEPS.length) return 'celebrate';
-  if (stepIndex === 0) return 'wave';
-  if (stepIndex === 2 && answers.tone === 'dark') return 'cool';
-  if (stepIndex === 3) return 'point';
-  return 'think';
-}
+function ComparePanel({ products, onClear }: { products: AlamaarProduct[]; onClear: () => void }) {
+  if (products.length < 2) return null;
 
-function scoreProduct(product: AlamaarProduct, answers: Answers): number {
-  let score = 0;
-  if (answers.tone && product.tone === answers.tone) score += 5;
-  if (answers.style === 'warm-wood' && product.family === 'wood') score += 4;
-  if (answers.style === 'modern-dark' && product.tone === 'dark') score += 4;
-  if (answers.style === 'modern-light' && product.tone === 'light') score += 4;
-  if (answers.style === 'scandi' && (product.tone === 'light' || product.tone === 'neutral')) score += 3;
-  if (answers.style === 'statement' && (product.family === 'decorative' || product.family === 'stone')) score += 3;
-  if (answers.project === 'hospitality' && product.tone === 'wood') score += 2;
-  if (answers.project === 'office' && product.tone === 'neutral') score += 2;
-  return score;
-}
-
-function resultReason(product: AlamaarProduct, answers: Answers): string {
-  const toneText: Record<AlamaarProduct['tone'], string> = {
-    light: 'درجة فاتحة',
-    neutral: 'درجة محايدة',
-    wood: 'طابع خشبي دافئ',
-    dark: 'درجة داكنة عميقة',
-  };
-  const application = answers.application === 'doors' ? 'واجهات الدواليب' : answers.application === 'walls' ? 'الحوائط الداخلية' : answers.application === 'worktop' ? 'أسطح المطبخ' : 'الأثاث';
-  return `${toneText[product.tone]} مناسبة بصريًا لاتجاهك، وتستحق المقارنة على ${application}.`;
+  return (
+    <section className="alamaar-compare-panel" aria-label="مقارنة بصرية سريعة">
+      <div className="alamaar-compare-panel__heading">
+        <div>
+          <span>مقارنة بصرية</span>
+          <h2>شوف الفرق قبل ما تخرج من التجربة</h2>
+        </div>
+        <button type="button" onClick={onClear}>مسح المقارنة</button>
+      </div>
+      <div className="alamaar-compare-panel__grid">
+        {products.map((product) => (
+          <article key={product.id}>
+            <img src={product.image} alt="" />
+            <div>
+              <strong>{product.name}</strong>
+              <span>{product.code}</span>
+              <dl>
+                <div><dt>العائلة</dt><dd>{product.family}</dd></div>
+                <div><dt>الاتجاه اللوني</dt><dd>{product.tone}</dd></div>
+              </dl>
+            </div>
+          </article>
+        ))}
+      </div>
+      <p>المقارنة هنا بصرية فقط. راجع المواصفات الفنية الفعلية من صفحة كل منتج أو مع فريق العمار قبل الاختيار النهائي.</p>
+    </section>
+  );
 }
 
 export default function AlamaarWizardPage() {
-  const [stepIndex, setStepIndex] = useState(0);
-  const [answers, setAnswers] = useState<Answers>({});
+  const restored = useMemo(restoreSession, []);
+  const [stepIndex, setStepIndex] = useState(() => Math.min(restored.stepIndex ?? 0, STEPS.length));
+  const [answers, setAnswers] = useState<Answers>(() => restored.answers ?? {});
   const [catalog, setCatalog] = useState<AlamaarProduct[]>(ALAMAAR_FALLBACK_PRODUCTS);
   const [catalogSource, setCatalogSource] = useState<'live' | 'fallback'>('fallback');
-  const [savedIds, setSavedIds] = useState<string[]>([]);
+  const [savedIds, setSavedIds] = useState<string[]>(() => restored.savedIds ?? []);
+  const [compareIds, setCompareIds] = useState<string[]>([]);
+  const [reaction, setReaction] = useState<'idle' | 'approve'>('idle');
+  const [look, setLook] = useState({ x: 0, y: 0 });
+  const reactionTimer = useRef<number | null>(null);
+  const frameRef = useRef<number | null>(null);
+  const pointerRef = useRef({ x: 0, y: 0 });
+
+  const riveSrc = useMemo(() => {
+    const query = new URLSearchParams(window.location.search).get('rive');
+    return query?.trim() || null;
+  }, []);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -175,34 +153,98 @@ export default function AlamaarWizardPage() {
     return () => controller.abort();
   }, []);
 
+  useEffect(() => {
+    window.sessionStorage.setItem(SESSION_KEY, JSON.stringify({ stepIndex, answers, savedIds } satisfies PersistedSession));
+  }, [answers, savedIds, stepIndex]);
+
+  useEffect(() => () => {
+    if (reactionTimer.current) window.clearTimeout(reactionTimer.current);
+    if (frameRef.current) window.cancelAnimationFrame(frameRef.current);
+  }, []);
+
   const currentStep = STEPS[stepIndex];
   const isResults = stepIndex >= STEPS.length;
-  const recommendations = useMemo(() => [...catalog].sort((a, b) => scoreProduct(b, answers) - scoreProduct(a, answers)).slice(0, 3), [catalog, answers]);
-  const mascotState = getMascotState(stepIndex, answers);
   const selectedValue = currentStep ? answers[currentStep.key] : undefined;
+  const recommendations = useMemo(() => rankProducts(catalog, answers, 3), [catalog, answers]);
+  const topProduct = recommendations[0];
+  const guide = guideMessage(stepIndex, answers, topProduct);
+  const characterState = mascotState(stepIndex, answers, reaction);
+  const mood = sceneTone(answers);
+  const comparedProducts = compareIds
+    .map((id) => catalog.find((product) => product.id === id))
+    .filter((product): product is AlamaarProduct => Boolean(product));
+  const answeredCount = Object.values(answers).filter(Boolean).length;
+  const canRevealEarly = !isResults && stepIndex >= 1 && answeredCount >= 2;
+
+  const triggerApprove = () => {
+    setReaction('approve');
+    if (reactionTimer.current) window.clearTimeout(reactionTimer.current);
+    reactionTimer.current = window.setTimeout(() => setReaction('idle'), 700);
+  };
 
   const selectChoice = (choice: Choice) => {
     if (!currentStep) return;
-    setAnswers((current) => ({ ...current, [currentStep.key]: choice.tone ?? choice.value }));
+    setAnswers((current) => ({ ...current, [currentStep.key]: choiceValue(choice) }));
+    triggerApprove();
   };
 
   const next = () => {
     if (!currentStep || !selectedValue) return;
+    setReaction('idle');
     setStepIndex((current) => Math.min(current + 1, STEPS.length));
   };
 
-  const back = () => setStepIndex((current) => Math.max(0, current - 1));
+  const goToStep = (index: number) => {
+    if (index > stepIndex || index < 0) return;
+    setReaction('idle');
+    setStepIndex(index);
+  };
+
+  const back = () => {
+    setReaction('idle');
+    setStepIndex((current) => Math.max(0, current - 1));
+  };
+
+  const revealEarly = () => {
+    setReaction('idle');
+    setStepIndex(STEPS.length);
+  };
 
   const restart = () => {
     setAnswers({});
     setSavedIds([]);
+    setCompareIds([]);
+    setReaction('idle');
     setStepIndex(0);
+    window.sessionStorage.removeItem(SESSION_KEY);
   };
 
-  const toggleSaved = (id: string) => setSavedIds((current) => current.includes(id) ? current.filter((savedId) => savedId !== id) : [...current, id]);
+  const toggleSaved = (id: string) => {
+    setSavedIds((current) => current.includes(id) ? current.filter((savedId) => savedId !== id) : [...current, id]);
+  };
+
+  const toggleCompare = (id: string) => {
+    setCompareIds((current) => {
+      if (current.includes(id)) return current.filter((item) => item !== id);
+      return [...current, id].slice(-2);
+    });
+  };
+
+  const handlePointerMove = (event: React.PointerEvent<HTMLElement>) => {
+    if (event.pointerType === 'touch') return;
+    pointerRef.current = {
+      x: ((event.clientX / window.innerWidth) * 2 - 1) * 100,
+      y: ((event.clientY / window.innerHeight) * 2 - 1) * 100,
+    };
+    if (frameRef.current) return;
+    frameRef.current = window.requestAnimationFrame(() => {
+      frameRef.current = null;
+      setLook(pointerRef.current);
+    });
+  };
 
   return (
-    <div className="alamaar-demo" dir="rtl">
+    <div className="alamaar-demo" dir="rtl" data-scene-tone={mood} onPointerMove={handlePointerMove}>
       <header className="alamaar-demo__header">
         <a className="alamaar-demo__brand" href="https://alamaarhpl.com/" target="_blank" rel="noreferrer">
           <strong>AL AMAAR</strong>
@@ -218,101 +260,166 @@ export default function AlamaarWizardPage() {
 
       <main className="alamaar-demo__stage">
         <div className="alamaar-demo__background" aria-hidden="true">
-          <div className="alamaar-demo__panel alamaar-demo__panel--one" />
-          <div className="alamaar-demo__panel alamaar-demo__panel--two" />
-          <div className="alamaar-demo__panel alamaar-demo__panel--three" />
-          <div className="alamaar-demo__hero-copy"><span>HPL</span><strong>أسطح تصنع روح المكان.</strong></div>
+          <div
+            className="alamaar-demo__panel alamaar-demo__panel--one"
+            style={{ transform: `translate3d(${look.x * -0.035}px, ${look.y * -0.018}px, 0) rotate(-6deg)` }}
+          />
+          <div
+            className="alamaar-demo__panel alamaar-demo__panel--two"
+            style={{ transform: `translate3d(${look.x * 0.025}px, ${look.y * -0.012}px, 0) rotate(2deg)` }}
+          />
+          <div
+            className="alamaar-demo__panel alamaar-demo__panel--three"
+            style={{ transform: `translate3d(${look.x * 0.045}px, ${look.y * 0.016}px, 0) rotate(7deg)` }}
+          />
+          <div className="alamaar-demo__grain" />
+          <div className="alamaar-demo__hero-copy">
+            <span>HPL</span>
+            <strong>اختيار خامة، بس بإحساس أقل زحمة.</strong>
+          </div>
         </div>
         <div className="alamaar-demo__veil" />
 
         <section className={`alamaar-wizard ${isResults ? 'alamaar-wizard--results' : ''}`} aria-live="polite">
+          <div className="alamaar-wizard__topline">
+            <div className="alamaar-wizard__mode">
+              <span className="alamaar-wizard__mode-dot" />
+              GUIDED MATERIAL CONCIERGE
+            </div>
+            <span>{answeredCount}/{STEPS.length} إشارات بصرية</span>
+          </div>
+
           <div className="alamaar-wizard__progress" aria-label="تقدم الاختيارات">
-            {STEPS.map((step, index) => (
-              <button
-                key={step.key}
-                type="button"
-                className={index < stepIndex ? 'is-done' : index === stepIndex ? 'is-current' : ''}
-                onClick={() => index < stepIndex && setStepIndex(index)}
-                disabled={index > stepIndex}
-                aria-label={`الخطوة ${index + 1}: ${step.subtitle}`}
-              >
-                <span>{index < stepIndex ? '✓' : index + 1}</span>
-                <small>{step.subtitle.replace('اختر ', '')}</small>
-              </button>
-            ))}
+            {STEPS.map((step, index) => {
+              const complete = Boolean(answers[step.key]);
+              const current = index === stepIndex && !isResults;
+              return (
+                <button
+                  key={step.key}
+                  type="button"
+                  className={complete ? 'is-done' : current ? 'is-current' : ''}
+                  onClick={() => goToStep(index)}
+                  disabled={index > stepIndex || isResults}
+                  aria-label={`الخطوة ${index + 1}: ${step.eyebrow}`}
+                >
+                  <span>{complete ? '✓' : index + 1}</span>
+                  <small>{step.eyebrow}</small>
+                </button>
+              );
+            })}
           </div>
 
           {!isResults && currentStep ? (
-            <div className="alamaar-wizard__content">
+            <div className="alamaar-wizard__content" key={currentStep.key}>
               <div className="alamaar-wizard__heading">
-                <span>اختيار موجه · {stepIndex + 1}/{STEPS.length}</span>
+                <span>{currentStep.eyebrow} · {stepIndex + 1}/{STEPS.length}</span>
                 <h1>{currentStep.title}</h1>
                 <p>{currentStep.subtitle}</p>
               </div>
+
               <div className={`alamaar-wizard__choices alamaar-wizard__choices--${currentStep.choices.length}`}>
-                {currentStep.choices.map((choice) => {
-                  const choiceValue = choice.tone ?? choice.value;
-                  const selected = selectedValue === choiceValue;
+                {currentStep.choices.map((choice, index) => {
+                  const value = choiceValue(choice);
+                  const selected = selectedValue === value;
                   return (
-                    <button key={choice.value} type="button" className={selected ? 'is-selected' : ''} onClick={() => selectChoice(choice)} aria-pressed={selected}>
+                    <button
+                      key={choice.value}
+                      type="button"
+                      className={selected ? 'is-selected' : ''}
+                      onClick={() => selectChoice(choice)}
+                      onFocus={() => setLook({ x: index < currentStep.choices.length / 2 ? 58 : -58, y: -12 })}
+                      aria-pressed={selected}
+                      data-choice-tone={choice.tone ?? ''}
+                    >
+                      <span className="alamaar-wizard__choice-shine" />
                       <span className="alamaar-wizard__choice-icon">{choice.icon}</span>
                       <strong>{choice.label}</strong>
                       <small>{choice.hint}</small>
+                      <em>{choice.microcopy}</em>
                       <span className="alamaar-wizard__check">✓</span>
                     </button>
                   );
                 })}
               </div>
+
               <div className="alamaar-wizard__actions">
                 <button type="button" className="alamaar-button alamaar-button--ghost" onClick={back} disabled={stepIndex === 0}>رجوع</button>
-                <button type="button" className="alamaar-button alamaar-button--primary" onClick={next} disabled={!selectedValue}>{stepIndex === STEPS.length - 1 ? 'اعرض الترشيحات' : 'التالي'}</button>
+                <div className="alamaar-wizard__actions-center">
+                  {canRevealEarly ? <button type="button" className="alamaar-text-action" onClick={revealEarly}>كفاية كده، ورّيني ترشيحات</button> : null}
+                </div>
+                <button type="button" className="alamaar-button alamaar-button--primary" onClick={next} disabled={!selectedValue}>
+                  {stepIndex === STEPS.length - 1 ? 'اكشف الـ shortlist' : 'كمّل'}
+                  <span>←</span>
+                </button>
               </div>
             </div>
           ) : (
-            <div className="alamaar-results">
-              <div className="alamaar-wizard__heading">
-                <span>النتائج</span>
-                <h1>هذه أقرب خامات لاختياراتك</h1>
-                <p>ترشيح أولي بصري — افتح الخامة لمراجعة التفاصيل الفعلية قبل الاعتماد.</p>
+            <div className="alamaar-results" key="results">
+              <div className="alamaar-results__intro">
+                <div className="alamaar-wizard__heading">
+                  <span>CURATED SHORTLIST</span>
+                  <h1>ثلاث خامات تستحق تبدأ منها</h1>
+                  <p>الترتيب مبني على اختياراتك البصرية والبيانات العامة المتاحة. المواصفات الفنية والملاءمة النهائية لازم تتراجع من المصدر.</p>
+                </div>
+                <div className="alamaar-results__summary" aria-label="ملخص اختياراتك">
+                  {STEPS.map((step) => {
+                    const label = answerLabel(step.key, answers[step.key]);
+                    return label ? <span key={step.key}><small>{step.eyebrow}</small>{label}</span> : null;
+                  })}
+                </div>
               </div>
+
               <div className="alamaar-results__grid">
                 {recommendations.map((product, index) => (
-                  <article className="alamaar-result-card" key={product.id}>
-                    <div className="alamaar-result-card__image">
-                      <img src={product.image} alt={`${product.name} ${product.code}`} loading="lazy" />
-                      <button type="button" onClick={() => toggleSaved(product.id)} aria-label={savedIds.includes(product.id) ? 'إزالة من المفضلة' : 'حفظ في المفضلة'}>{savedIds.includes(product.id) ? '♥' : '♡'}</button>
-                      {index === 0 ? <span>الأقرب</span> : null}
-                    </div>
-                    <div className="alamaar-result-card__body">
-                      <small>{product.family.toUpperCase()}</small>
-                      <h2>{product.name}</h2>
-                      <strong>{product.code}</strong>
-                      <p>{resultReason(product, answers)}</p>
-                      <a href={product.url} target="_blank" rel="noreferrer">عرض الخامة ↗</a>
-                    </div>
-                  </article>
+                  <ResultCard
+                    key={product.id}
+                    product={product}
+                    index={index}
+                    answers={answers}
+                    saved={savedIds.includes(product.id)}
+                    compared={compareIds.includes(product.id)}
+                    onSave={() => toggleSaved(product.id)}
+                    onCompare={() => toggleCompare(product.id)}
+                  />
                 ))}
               </div>
+
+              <ComparePanel products={comparedProducts} onClear={() => setCompareIds([])} />
+
               <div className="alamaar-results__actions">
                 <a className="alamaar-button alamaar-button--primary" href="https://alamaarhpl.com/contact/" target="_blank" rel="noreferrer">اطلب عينة</a>
-                <a className="alamaar-button alamaar-button--secondary" href="https://wa.me/201008897060" target="_blank" rel="noreferrer">تواصل واتساب</a>
-                <button type="button" className="alamaar-button alamaar-button--ghost" onClick={restart}>ابدأ من جديد</button>
+                <a className="alamaar-button alamaar-button--secondary" href="https://wa.me/201008897060" target="_blank" rel="noreferrer">اسأل مهندس على واتساب</a>
+                <button type="button" className="alamaar-button alamaar-button--ghost" onClick={() => setStepIndex(Math.max(0, STEPS.length - 1))}>عدّل الاختيارات</button>
+                <button type="button" className="alamaar-text-action" onClick={restart}>ابدأ من جديد</button>
               </div>
             </div>
           )}
         </section>
 
-        <aside className="alamaar-guide" aria-label="مساعد اختيار الخامات">
+        <aside className={`alamaar-guide ${isResults ? 'alamaar-guide--results' : ''}`} aria-label="مساعد اختيار الخامات">
           <div className="alamaar-guide__bubble">
-            <span>مساعد الاختيار</span>
-            <p>{MASCOT_MESSAGES[Math.min(stepIndex, MASCOT_MESSAGES.length - 1)]}</p>
+            <div className="alamaar-guide__bubble-topline">
+              <span>{guide.eyebrow}</span>
+              <i aria-hidden="true" />
+            </div>
+            <p>{guide.text}</p>
+            {guide.emphasis ? <strong>{guide.emphasis}</strong> : null}
           </div>
-          <Mascot state={mascotState} />
+          <MascotStage
+            state={characterState}
+            stepIndex={stepIndex}
+            lookX={look.x}
+            lookY={look.y}
+            talking
+            engaged
+            riveSrc={riveSrc}
+          />
         </aside>
 
-        <div className="alamaar-demo__source" title="The demo first tries Al Amaar's public WooCommerce Store API and falls back to catalog records captured from the public site.">
+        <div className="alamaar-demo__source" title="النسخة تحاول استخدام WooCommerce Store API العام أولاً ثم تستخدم fallback عام عند الحاجة.">
           <span className={catalogSource === 'live' ? 'is-live' : ''} />
-          {catalogSource === 'live' ? 'بيانات مباشرة من الكتالوج العام' : 'نسخة اختبار من بيانات الموقع العامة'}
+          {catalogSource === 'live' ? 'الكتالوج العام متصل' : 'وضع fallback للكتالوج العام'}
+          {riveSrc ? <b>· Rive source connected</b> : <b>· Rive contract ready</b>}
         </div>
       </main>
     </div>
