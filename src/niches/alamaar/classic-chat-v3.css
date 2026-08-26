@@ -44,19 +44,17 @@
   animation: alamaar-ai-surface-in .42s .08s cubic-bezier(.18,.78,.25,1) both;
 }
 
-.alamaar-chat__ai-surface .alamaar-ai-ui {
+.alamaar-chat__ai-surface .alamaar-engine-ui {
   margin-top: 0;
 }
 
-.alamaar-chat__ai-surface .alamaar-ai-ui__choices,
-.alamaar-chat__ai-surface .alamaar-ai-ui__suggestions {
+.alamaar-chat__ai-surface .alamaar-engine-ui__choices {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
 }
 
-.alamaar-chat__ai-surface .alamaar-ai-ui__choices button,
-.alamaar-chat__ai-surface .alamaar-ai-ui__suggestions button {
+.alamaar-chat__ai-surface .alamaar-engine-ui__choices button {
   min-height: 46px;
   border-radius: 14px;
   font-size: 10px;
@@ -123,13 +121,11 @@
     max-width: calc(100% - 76px);
   }
 
-  .alamaar-chat__ai-surface .alamaar-ai-ui__choices,
-  .alamaar-chat__ai-surface .alamaar-ai-ui__suggestions {
+  .alamaar-chat__ai-surface .alamaar-engine-ui__choices {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .alamaar-chat__ai-surface .alamaar-ai-ui__choices button,
-  .alamaar-chat__ai-surface .alamaar-ai-ui__suggestions button {
+  .alamaar-chat__ai-surface .alamaar-engine-ui__choices button {
     min-height: 43px;
     padding: 7px 9px;
     font-size: 9px;
