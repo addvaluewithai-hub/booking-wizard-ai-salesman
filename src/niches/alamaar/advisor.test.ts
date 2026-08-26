@@ -20,7 +20,7 @@ describe('Al Amaar proactive advisor moments', () => {
     })).toEqual({
       moment: 'after-style',
       answers: { project: 'office', style: 'warm-wood' },
-      nextStep: { key: 'tone', title: 'عايز الألوان تميل لإيه؟' },
+      nextStep: { key: 'tone', title: 'نروح فاتح ولا نغرق في العمق؟' },
     });
   });
 });
