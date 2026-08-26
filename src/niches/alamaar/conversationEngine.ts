@@ -17,16 +17,55 @@ export type EngineResolution = {
   didUpdateAnswers: boolean;
 };
 
+type CanonicalAnswer = NonNullable<EngineResolution['resolvedCurrentAnswer']>;
+
 function firstUnansweredStep(answers: Answers) {
   const index = STEPS.findIndex((step) => !answers[step.key]);
   return index === -1 ? STEPS.length : index;
 }
 
-function canonicalAnswer(field: AnswerKey, value: string) {
+function stepIndexForKey(key: AnswerKey) {
+  return STEPS.findIndex((step) => step.key === key);
+}
+
+function canonicalAnswer(field: AnswerKey, value: string): CanonicalAnswer | null {
   const step = STEPS.find((item) => item.key === field);
   const choice = step?.choices.find((item) => choiceValue(item) === value);
   if (!step || !choice) return null;
   return { key: step.key, value: choiceValue(choice), label: choice.label };
+}
+
+function collectAnswers(response: AiInterpreterResponse) {
+  return response.events
+    .filter((event): event is Extract<typeof event, { type: 'answer' }> => event.type === 'answer')
+    .map((event) => canonicalAnswer(event.field, event.value))
+    .filter((answer): answer is CanonicalAnswer => Boolean(answer));
+}
+
+function applyAnswerEvents(baseAnswers: Answers, answerEvents: CanonicalAnswer[]) {
+  const nextAnswers: Answers = { ...baseAnswers };
+  const explicitKeys = new Set(answerEvents.map((answer) => answer.key));
+
+  const changedIndexes = answerEvents
+    .filter((answer) => baseAnswers[answer.key] !== answer.value)
+    .map((answer) => stepIndexForKey(answer.key))
+    .filter((index) => index >= 0);
+
+  if (changedIndexes.length) {
+    const earliestChanged = Math.min(...changedIndexes);
+    STEPS.slice(earliestChanged + 1).forEach((step) => {
+      if (!explicitKeys.has(step.key)) delete nextAnswers[step.key];
+    });
+  }
+
+  answerEvents.forEach((answer) => {
+    nextAnswers[answer.key] = answer.value;
+  });
+
+  return {
+    answers: nextAnswers,
+    didUpdateAnswers: answerEvents.some((answer) => baseAnswers[answer.key] !== answer.value),
+  };
 }
 
 function pickProducts(catalog: AlamaarProduct[], answers: Answers, criteria: ProductCriteria) {
@@ -62,22 +101,18 @@ export function reduceSemanticEvents({
   stepIndex: number;
   catalog: AlamaarProduct[];
 }): EngineResolution {
-  const nextAnswers: Answers = { ...answers };
   const currentStep = STEPS[stepIndex];
+  const answerEvents = collectAnswers(response);
+  const applied = applyAnswerEvents(answers, answerEvents);
+  const nextAnswers = applied.answers;
   const effects: ConversationEffect[] = [];
   const actionIds: ConversationActionId[] = [];
-  let didUpdateAnswers = false;
-  let resolvedCurrentAnswer: EngineResolution['resolvedCurrentAnswer'];
+  const resolvedCurrentAnswer = currentStep
+    ? answerEvents.find((answer) => answer.key === currentStep.key)
+    : undefined;
 
   for (const event of response.events) {
-    if (event.type === 'answer') {
-      const answer = canonicalAnswer(event.field, event.value);
-      if (!answer) continue;
-      if (nextAnswers[answer.key] !== answer.value) didUpdateAnswers = true;
-      nextAnswers[answer.key] = answer.value;
-      if (currentStep?.key === answer.key) resolvedCurrentAnswer = answer;
-      continue;
-    }
+    if (event.type === 'answer') continue;
 
     if (event.type === 'clarify_current_question' && currentStep) {
       const allowed = new Set(currentStep.choices.map(choiceValue));
@@ -85,6 +120,8 @@ export function reduceSemanticEvents({
         .filter((candidate) => candidate.field === currentStep.key && allowed.has(candidate.value))
         .map((candidate) => candidate.value)
         .filter((value, index, all) => all.indexOf(value) === index);
+
+      // A full candidate set is the same surface the deterministic flow already owns.
       if (candidates.length >= 2 && candidates.length < currentStep.choices.length) {
         effects.push({ type: 'guided_candidates', stepKey: currentStep.key, optionIds: candidates });
       }
@@ -115,8 +152,14 @@ export function reduceSemanticEvents({
 
   if (actionIds.length) effects.push({ type: 'actions', actionIds });
 
-  const nextStepIndex = didUpdateAnswers ? firstUnansweredStep(nextAnswers) : stepIndex;
-  return { answers: nextAnswers, nextStepIndex, effects, resolvedCurrentAnswer, didUpdateAnswers };
+  const nextStepIndex = applied.didUpdateAnswers ? firstUnansweredStep(nextAnswers) : stepIndex;
+  return {
+    answers: nextAnswers,
+    nextStepIndex,
+    effects,
+    resolvedCurrentAnswer,
+    didUpdateAnswers: applied.didUpdateAnswers,
+  };
 }
 
 export function defaultRecommendations(catalog: AlamaarProduct[], answers: Answers) {
