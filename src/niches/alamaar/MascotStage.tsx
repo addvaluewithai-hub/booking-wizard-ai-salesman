@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
 import type { MascotState } from './experience';
 import ProceduralMascot from './ProceduralMascot';
+import './mascot-stage.css';
 
 const RiveMascotCanvas = lazy(() => import('./RiveMascotCanvas'));
 
