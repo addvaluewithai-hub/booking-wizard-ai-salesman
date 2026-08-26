@@ -1,0 +1,355 @@
+.alamaar-proc {
+  transform-origin: 50% 94%;
+}
+
+.alamaar-proc__rig {
+  animation: alamaar-micro-breathe 5.4s ease-in-out infinite;
+}
+
+.alamaar-proc__body {
+  animation: alamaar-micro-body-breathe 5.4s ease-in-out infinite;
+}
+
+.alamaar-proc__floor,
+.alamaar-proc__floor-glow {
+  animation: alamaar-micro-shadow 5.4s ease-in-out infinite;
+}
+
+.alamaar-proc__face,
+.alamaar-proc__pupil,
+.alamaar-proc__brow,
+.alamaar-proc__micro-lid,
+.alamaar-proc__mouth-wrap,
+.alamaar-proc__cheek,
+.alamaar-proc__glasses {
+  transform-box: fill-box;
+}
+
+.alamaar-proc__face {
+  transition: transform 150ms cubic-bezier(.2,.74,.28,1);
+}
+
+.alamaar-proc__pupil {
+  transition: transform 115ms cubic-bezier(.18,.7,.25,1);
+}
+
+.alamaar-proc__micro-lid {
+  opacity: 0;
+  transform-origin: 50% 0%;
+  transform: translateY(-3px) scaleY(.6);
+  transition: opacity 180ms ease, transform 220ms cubic-bezier(.2,.8,.25,1);
+}
+
+.alamaar-proc__brow {
+  transition: transform 260ms cubic-bezier(.2,.78,.25,1);
+}
+
+.alamaar-proc__mouth-line,
+.alamaar-proc__mouth-corner {
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
+  transition: transform 260ms cubic-bezier(.2,.8,.25,1), opacity 180ms ease;
+}
+
+.alamaar-proc__cheek {
+  transition: opacity 220ms ease, transform 260ms cubic-bezier(.2,.8,.25,1);
+}
+
+/* The character no longer lip-syncs. Keep the mouth calm and expressive. */
+.alamaar-proc.is-talking .alamaar-proc__mouth--smile,
+.alamaar-proc.is-talking .alamaar-proc__teeth,
+.alamaar-proc.is-talking .alamaar-proc__tongue,
+.alamaar-proc.is-talking .alamaar-proc__mouth--talk,
+.alamaar-proc.is-talking .alamaar-proc__talk-teeth {
+  animation: none !important;
+}
+
+/* Kill broad arm choreography. The hands stay almost still. */
+.alamaar-proc[data-state] .alamaar-proc__arm--left,
+.alamaar-proc[data-state] .alamaar-proc__arm--right {
+  animation: none !important;
+  transform: none !important;
+  transition: transform 420ms ease;
+}
+
+/* Welcome = eye contact + tiny settling motion, no waving. */
+.alamaar-proc[data-state="welcome"] .alamaar-proc__rig {
+  animation: alamaar-micro-arrive .9s cubic-bezier(.16,.86,.28,1) 1 both,
+             alamaar-micro-breathe 5.4s .9s ease-in-out infinite;
+}
+
+.alamaar-proc[data-state="welcome"] .alamaar-proc__brow--left {
+  transform: translateY(-2px) rotate(-2deg);
+}
+
+.alamaar-proc[data-state="welcome"] .alamaar-proc__brow--right {
+  transform: translateY(-1px) rotate(1deg);
+}
+
+.alamaar-proc[data-state="welcome"] .alamaar-proc__mouth-corner {
+  transform: translate(1px,-1px) rotate(-2deg);
+}
+
+/* Listening = stillness, slight forward attention, relaxed mouth. */
+.alamaar-proc[data-state="listen"] .alamaar-proc__rig {
+  animation: alamaar-micro-listen 4.8s ease-in-out infinite;
+}
+
+.alamaar-proc[data-state="listen"] .alamaar-proc__brow--left,
+.alamaar-proc[data-state="listen"] .alamaar-proc__brow--right {
+  transform: translateY(-1.5px);
+}
+
+.alamaar-proc[data-state="listen"] .alamaar-proc__mouth-line {
+  transform: scaleX(.96) translateY(1px);
+}
+
+/* Thinking = one eyebrow, tiny head/body drift, no hand-to-chin pose. */
+.alamaar-proc[data-state="think"] .alamaar-proc__rig {
+  animation: alamaar-micro-think 5.1s ease-in-out infinite;
+}
+
+.alamaar-proc[data-state="think"] .alamaar-proc__brow--left {
+  transform: translateY(1px) rotate(-3deg);
+}
+
+.alamaar-proc[data-state="think"] .alamaar-proc__brow--right {
+  transform: translateY(-4px) rotate(3deg);
+}
+
+.alamaar-proc[data-state="think"] .alamaar-proc__micro-lid {
+  opacity: .14;
+  transform: translateY(-1px) scaleY(.72);
+}
+
+.alamaar-proc[data-state="think"] .alamaar-proc__mouth-line {
+  transform: scaleX(.91) translateY(1.5px);
+}
+
+/* Approval = double blink from JS + a tiny nod and asymmetric smile. */
+.alamaar-proc[data-state="approve"] .alamaar-proc__rig {
+  animation: alamaar-micro-approve .46s cubic-bezier(.2,.82,.26,1) 1 both;
+}
+
+.alamaar-proc[data-state="approve"] .alamaar-proc__micro-lid {
+  opacity: .3;
+  transform: translateY(0) scaleY(.86);
+}
+
+.alamaar-proc[data-state="approve"] .alamaar-proc__brow--left,
+.alamaar-proc[data-state="approve"] .alamaar-proc__brow--right {
+  transform: translateY(-2.5px);
+}
+
+.alamaar-proc[data-state="approve"] .alamaar-proc__mouth-line {
+  transform: translateY(-1px) scaleX(1.02);
+}
+
+.alamaar-proc[data-state="approve"] .alamaar-proc__mouth-corner {
+  transform: translate(2px,-2px) rotate(-5deg);
+}
+
+.alamaar-proc[data-state="approve"] .alamaar-proc__cheek {
+  opacity: .27;
+  transform: scaleX(1.07);
+}
+
+.alamaar-proc[data-state="approve"] .alamaar-proc__sparkles {
+  opacity: .34;
+}
+
+.alamaar-proc[data-state="approve"] .alamaar-proc__spark--1 {
+  animation: alamaar-micro-spark .52s ease-out 1 both;
+}
+
+.alamaar-proc[data-state="approve"] .alamaar-proc__spark--2,
+.alamaar-proc[data-state="approve"] .alamaar-proc__spark--3 {
+  opacity: 0;
+}
+
+/* Sunglasses remain the boldest beat, but the movement is controlled. */
+.alamaar-proc__glasses {
+  opacity: 0;
+  transform: translateY(-10px) scale(.95) rotate(-1.8deg);
+  transform-origin: 50% 45%;
+  transition: opacity 180ms ease, transform 420ms cubic-bezier(.16,.86,.25,1.08);
+}
+
+.alamaar-proc[data-state="cool"] .alamaar-proc__glasses {
+  opacity: 1;
+  transform: translateY(0) scale(1) rotate(-.35deg);
+}
+
+.alamaar-proc[data-state="cool"] .alamaar-proc__rig {
+  animation: alamaar-micro-cool 5.2s ease-in-out infinite;
+}
+
+.alamaar-proc[data-state="cool"] .alamaar-proc__mouth-line {
+  transform: translateY(-1px) scaleX(.98) rotate(-1deg);
+}
+
+.alamaar-proc[data-state="cool"] .alamaar-proc__mouth-corner {
+  transform: translate(2px,-2px) rotate(-6deg);
+}
+
+.alamaar-proc[data-state="cool"] .alamaar-proc__glass-glint {
+  stroke-opacity: .08;
+  animation: alamaar-micro-glint 3.8s 420ms ease-in-out infinite;
+}
+
+.alamaar-proc[data-state="cool"] .alamaar-proc__sparkles {
+  opacity: .18;
+}
+
+/* Pointing and presenting are now communicated mostly through gaze/posture. */
+.alamaar-proc[data-state="point"] .alamaar-proc__rig {
+  animation: alamaar-micro-ui-lean 4.6s ease-in-out infinite;
+}
+
+.alamaar-proc[data-state="point"] .alamaar-proc__brow--right {
+  transform: translateY(-2px) rotate(2deg);
+}
+
+.alamaar-proc[data-state="present"] .alamaar-proc__rig {
+  animation: alamaar-micro-present 5s ease-in-out infinite;
+}
+
+.alamaar-proc[data-state="present"] .alamaar-proc__brow--left,
+.alamaar-proc[data-state="present"] .alamaar-proc__brow--right {
+  transform: translateY(-2px);
+}
+
+.alamaar-proc[data-state="present"] .alamaar-proc__mouth-corner {
+  transform: translate(1px,-1px) rotate(-3deg);
+}
+
+.alamaar-proc[data-state="present"] .alamaar-proc__sparkles {
+  opacity: .12;
+}
+
+.alamaar-proc[data-state="celebrate"] .alamaar-proc__rig {
+  animation: alamaar-micro-celebrate .72s cubic-bezier(.2,.82,.26,1) 1 both,
+             alamaar-micro-breathe 5.4s .72s ease-in-out infinite;
+}
+
+.alamaar-proc[data-state="celebrate"] .alamaar-proc__micro-lid {
+  opacity: .22;
+  transform: translateY(0) scaleY(.82);
+}
+
+.alamaar-proc[data-state="celebrate"] .alamaar-proc__sparkles {
+  opacity: .4;
+}
+
+.alamaar-proc[data-state="celebrate"] .alamaar-proc__spark {
+  animation: alamaar-micro-spark .66s ease-out 1 both !important;
+}
+
+/* When the user is actively moving around the UI, the character focuses. */
+.alamaar-proc.is-attending[data-state="listen"] .alamaar-proc__micro-lid,
+.alamaar-proc.is-attending[data-state="point"] .alamaar-proc__micro-lid,
+.alamaar-proc.is-attending[data-state="present"] .alamaar-proc__micro-lid {
+  opacity: .08;
+  transform: translateY(-1px) scaleY(.66);
+}
+
+.alamaar-proc.is-attending .alamaar-proc__brow--right {
+  animation: alamaar-micro-brow-attend 1.8s ease-in-out 1;
+}
+
+@keyframes alamaar-micro-breathe {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  48% { transform: translateY(-1.2px) rotate(.08deg); }
+  58% { transform: translateY(-1.5px) rotate(-.06deg); }
+}
+
+@keyframes alamaar-micro-body-breathe {
+  0%, 100% { transform: scale(1,1); }
+  50% { transform: scale(1.002,1.005); }
+}
+
+@keyframes alamaar-micro-shadow {
+  0%, 100% { transform: scaleX(1); opacity: .22; }
+  50% { transform: scaleX(.976); opacity: .2; }
+}
+
+@keyframes alamaar-micro-arrive {
+  0% { transform: translateY(7px) scale(.986); opacity: .86; }
+  70% { transform: translateY(-1.5px) scale(1.003); opacity: 1; }
+  100% { transform: translateY(0) scale(1); opacity: 1; }
+}
+
+@keyframes alamaar-micro-listen {
+  0%, 100% { transform: translateY(0) rotate(-.15deg); }
+  50% { transform: translateY(1px) rotate(.18deg); }
+}
+
+@keyframes alamaar-micro-think {
+  0%, 100% { transform: translateY(0) rotate(-.3deg); }
+  50% { transform: translateY(-1.2px) rotate(.42deg); }
+}
+
+@keyframes alamaar-micro-approve {
+  0% { transform: translateY(0) scale(1); }
+  38% { transform: translateY(2.7px) scale(.996,1.003); }
+  72% { transform: translateY(-2px) scale(1.003,.998); }
+  100% { transform: translateY(0) scale(1); }
+}
+
+@keyframes alamaar-micro-cool {
+  0%, 100% { transform: translateY(0) rotate(-.22deg); }
+  50% { transform: translateY(-1.5px) rotate(.28deg); }
+}
+
+@keyframes alamaar-micro-ui-lean {
+  0%, 100% { transform: translateX(0) rotate(0); }
+  50% { transform: translateX(1.5px) rotate(.28deg); }
+}
+
+@keyframes alamaar-micro-present {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(-1.5px) scale(1.002); }
+}
+
+@keyframes alamaar-micro-celebrate {
+  0% { transform: translateY(0) scale(1); }
+  44% { transform: translateY(-5px) scale(1.008,.994); }
+  76% { transform: translateY(1px) scale(.998,1.004); }
+  100% { transform: translateY(0) scale(1); }
+}
+
+@keyframes alamaar-micro-spark {
+  0% { opacity: 0; transform: scale(.55) rotate(-8deg); }
+  52% { opacity: .55; transform: scale(1.04) rotate(3deg); }
+  100% { opacity: 0; transform: scale(.92) rotate(0); }
+}
+
+@keyframes alamaar-micro-glint {
+  0%, 76%, 100% { stroke-opacity: .08; }
+  82% { stroke-opacity: .28; }
+  88% { stroke-opacity: .1; }
+}
+
+@keyframes alamaar-micro-brow-attend {
+  0%, 100% { transform: translateY(0); }
+  38% { transform: translateY(-1.4px) rotate(1deg); }
+  72% { transform: translateY(-.4px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .alamaar-proc__rig,
+  .alamaar-proc__body,
+  .alamaar-proc__floor,
+  .alamaar-proc__floor-glow,
+  .alamaar-proc__glass-glint,
+  .alamaar-proc__spark,
+  .alamaar-proc__brow {
+    animation: none !important;
+  }
+
+  .alamaar-proc__face,
+  .alamaar-proc__pupil,
+  .alamaar-proc__glasses {
+    transition-duration: 0.01ms !important;
+  }
+}
